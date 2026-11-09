@@ -1,12 +1,37 @@
 import { NextResponse } from "next/server";
-import { getStravaConnection } from "@/utils/database";
+import { cookies } from "next/headers";
+import {
+  getAdminSessionCookieName,
+  getAthleteSessionCookieName,
+  verifyAdminSession,
+  verifyAthleteSession,
+} from "@/utils/admin-auth";
+import { getAthleteStravaConnection } from "@/utils/database";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const connection = await getStravaConnection();
+    const cookieStore = await cookies();
+    const athleteSession = await verifyAthleteSession(
+      cookieStore.get(getAthleteSessionCookieName())?.value
+    );
+    const isAdmin = await verifyAdminSession(
+      cookieStore.get(getAdminSessionCookieName())?.value
+    );
+    const athleteId =
+      athleteSession?.athleteId || (isAdmin ? null : undefined);
+    if (athleteId === undefined) {
+      return NextResponse.json({
+        authenticated: false,
+        connected: false,
+      });
+    }
+    const connection = athleteId
+      ? await getAthleteStravaConnection(athleteId)
+      : null;
     return NextResponse.json({
+      authenticated: Boolean(athleteSession || isAdmin),
       connected: Boolean(connection),
       athleteName: connection?.athleteName,
     });

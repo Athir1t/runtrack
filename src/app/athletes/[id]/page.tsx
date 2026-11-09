@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Activity, ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
 import { Athlete, ProgramConfig, StravaActivity } from "@/types";
@@ -10,8 +10,7 @@ const FIRST_WEEK_START = "2026-11-02";
 const WEEKDAY_NAMES = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
 
 interface ActivityResponse {
-  connected: boolean;
-  athleteName?: string;
+  authenticated: boolean;
   activities: StravaActivity[];
   message?: string;
 }
@@ -79,19 +78,6 @@ function formatDate(dateString: string): string {
   }).format(date);
 }
 
-function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/[.…]+/g, "").trim();
-}
-
-function matchesAthlete(profileName: string, stravaName: string): boolean {
-  const profile = normalizeName(profileName);
-  const listedName = normalizeName(stravaName);
-  return (
-    profile === listedName ||
-    (/[.…]+$/.test(stravaName.trim()) && profile.startsWith(listedName))
-  );
-}
-
 export default function AthleteActivitiesPage() {
   const { id } = useParams<{ id: string }>();
   const [athlete, setAthlete] = useState<Athlete | null>(null);
@@ -100,6 +86,15 @@ export default function AthleteActivitiesPage() {
   const [activities, setActivities] = useState<StravaActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [signedInAthleteId, setSignedInAthleteId] = useState<string | null>(null);
+  const [isSavingManual, setIsSavingManual] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualDistance, setManualDistance] = useState("");
+  const [manualMinutes, setManualMinutes] = useState("");
+  const [manualHeartrate, setManualHeartrate] = useState("");
+  const [manualStart, setManualStart] = useState("");
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -110,24 +105,34 @@ export default function AthleteActivitiesPage() {
 
     async function loadWeek() {
       try {
-        const [athletesResponse, programResponse, activityResponse] =
+        const [athletesResponse, sessionResponse, programResponse, activityResponse] =
           await Promise.all([
             fetch("/api/athletes", { signal: controller.signal }),
+            fetch("/api/athletes/session", {
+              signal: controller.signal,
+              cache: "no-store",
+            }),
             fetch(`/api/program?weekStart=${encodeURIComponent(requestedWeek)}`, {
               signal: controller.signal,
             }),
             fetch(
-              `/api/strava/activities?weekStart=${encodeURIComponent(requestedWeek)}`,
+              `/api/strava/activities?weekStart=${encodeURIComponent(requestedWeek)}&athleteId=${encodeURIComponent(id)}`,
               { signal: controller.signal, cache: "no-store" }
             ),
           ]);
-        const [athletesData, programData, activityData] = await Promise.all([
-          athletesResponse.json(),
-          programResponse.json(),
-          activityResponse.json() as Promise<ActivityResponse>,
-        ]);
+        const [athletesData, sessionData, programData, activityData] =
+          await Promise.all([
+            athletesResponse.json(),
+            sessionResponse.json(),
+            programResponse.json(),
+            activityResponse.json() as Promise<ActivityResponse>,
+          ]);
 
-        if (!athletesResponse.ok || !programResponse.ok) {
+        if (
+          !athletesResponse.ok ||
+          !sessionResponse.ok ||
+          !programResponse.ok
+        ) {
           throw new Error("ไม่สามารถโหลดข้อมูลนักกีฬาและโปรแกรมสัปดาห์นี้ได้");
         }
 
@@ -138,16 +143,17 @@ export default function AthleteActivitiesPage() {
         if (!activityResponse.ok) {
           throw new Error(activityData.message || "ไม่สามารถโหลดกิจกรรมได้");
         }
-        if (!activityData.connected) {
-          throw new Error("กรุณาเชื่อมต่อบัญชี Strava ก่อนดูกิจกรรม");
-        }
-        if (!matchesAthlete(activityData.athleteName || "", selectedAthlete.stravaName)) {
-          throw new Error("บัญชี Strava ที่เชื่อมต่อไม่ตรงกับนักกีฬาคนนี้");
+        if (!activityData.authenticated) {
+          throw new Error("Sign in to view athlete activities.");
         }
 
         setAthlete(selectedAthlete);
+        setSignedInAthleteId(
+          sessionData.authenticated ? sessionData.athleteId : null
+        );
         setProgram(programData as ProgramConfig);
         setActivities(activityData.activities);
+        if (!manualStart) setManualStart(`${requestedWeek}T07:00`);
       } catch (loadError) {
         if (!controller.signal.aborted) {
           setError(
@@ -163,7 +169,44 @@ export default function AthleteActivitiesPage() {
 
     void loadWeek();
     return () => controller.abort();
-  }, [id]);
+  }, [id, reloadVersion]);
+
+  const handleManualSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setManualError("");
+    setIsSavingManual(true);
+    try {
+      const response = await fetch("/api/athletes/me/activities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekStart,
+          name: manualName,
+          distanceKm: Number(manualDistance),
+          movingTimeSeconds: Math.round(Number(manualMinutes) * 60),
+          startDateLocal: manualStart,
+          averageHeartrate: manualHeartrate
+            ? Number(manualHeartrate)
+            : undefined,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "บันทึกกิจกรรมไม่สำเร็จ");
+      }
+      setManualName("");
+      setManualDistance("");
+      setManualMinutes("");
+      setManualHeartrate("");
+      setReloadVersion((version) => version + 1);
+    } catch (saveError) {
+      setManualError(
+        saveError instanceof Error ? saveError.message : "บันทึกกิจกรรมไม่สำเร็จ"
+      );
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
 
   const activitiesByDay = activities.reduce<Record<string, StravaActivity[]>>(
     (grouped, activity) => {
@@ -242,9 +285,9 @@ export default function AthleteActivitiesPage() {
                 className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"
               >
                 {error}
-                {error.includes("เชื่อมต่อบัญชี Strava") && (
+                {error.includes("Sign in") && (
                   <a
-                    href="/api/strava/auth"
+                    href="/api/strava/auth?flow=athlete"
                     className="ml-1 font-semibold underline hover:text-white"
                   >
                     เชื่อมต่อที่นี่
@@ -267,6 +310,88 @@ export default function AthleteActivitiesPage() {
                     <SummaryCard label="เพซเฉลี่ย" value={averagePace} />
                   </div>
                 </section>
+
+                {signedInAthleteId === id && (
+                  <section
+                    aria-label="เพิ่มกิจกรรมด้วยตนเอง"
+                    className="rounded-xl border border-kmutt-border bg-black/20 p-4"
+                  >
+                    <h2 className="mb-3 text-sm font-bold text-white">
+                      เพิ่มกิจกรรมด้วยตนเอง
+                    </h2>
+                    <form onSubmit={handleManualSubmit} className="grid gap-3 sm:grid-cols-2">
+                      <label className="text-xs text-gray-400">
+                        ชื่อกิจกรรม
+                        <input
+                          required
+                          maxLength={120}
+                          value={manualName}
+                          onChange={(event) => setManualName(event.target.value)}
+                          className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-gray-400">
+                        วันที่และเวลา (เวลาไทย)
+                        <input
+                          type="datetime-local"
+                          required
+                          value={manualStart}
+                          onChange={(event) => setManualStart(event.target.value)}
+                          className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-gray-400">
+                        ระยะทาง (กม.)
+                        <input
+                          type="number"
+                          required
+                          min="0.01"
+                          max="300"
+                          step="0.01"
+                          value={manualDistance}
+                          onChange={(event) => setManualDistance(event.target.value)}
+                          className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-gray-400">
+                        เวลาวิ่ง (นาที)
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="1440"
+                          step="1"
+                          value={manualMinutes}
+                          onChange={(event) => setManualMinutes(event.target.value)}
+                          className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      <label className="text-xs text-gray-400">
+                        หัวใจเฉลี่ย (ไม่บังคับ)
+                        <input
+                          type="number"
+                          min="30"
+                          max="250"
+                          value={manualHeartrate}
+                          onChange={(event) => setManualHeartrate(event.target.value)}
+                          className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-sm text-white"
+                        />
+                      </label>
+                      {manualError && (
+                        <p role="alert" className="self-end text-sm text-red-300">
+                          {manualError}
+                        </p>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={isSavingManual}
+                        className="rounded-lg bg-kmutt-orange px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60 sm:col-span-2"
+                      >
+                        {isSavingManual ? "กำลังบันทึก..." : "บันทึกกิจกรรมในเว็บไซต์"}
+                      </button>
+                    </form>
+                  </section>
+                )}
 
                 <section aria-label="กิจกรรมแยกตามวัน">
                   <h2 className="mb-3 text-sm font-bold text-white">
@@ -347,17 +472,23 @@ export default function AthleteActivitiesPage() {
                                       <ActivityMetric label="กิจกรรม" value={activity.name} />
                                     )}
                                   </div>
-                                  <a
-                                    href={`https://www.strava.com/activities/${activity.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    aria-label={`เปิด ${activity.name} บน Strava ในแท็บใหม่`}
-                                    className="shrink-0 rounded-lg p-2 text-kmutt-orange transition hover:bg-kmutt-orange/10"
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </a>
+                                  {activity.source === "manual" ? (
+                                    <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] text-gray-300">
+                                      บันทึกเอง
+                                    </span>
+                                  ) : (
+                                    <a
+                                      href={`https://www.strava.com/activities/${activity.id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      aria-label={`เปิด ${activity.name} บน Strava ในแท็บใหม่`}
+                                      className="shrink-0 rounded-lg p-2 text-kmutt-orange transition hover:bg-kmutt-orange/10"
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </a>
+                                  )}
                                 </li>
-                                {scheduledInterval && (
+                                {scheduledInterval && activity.source !== "manual" && (
                                   <li className="ml-3 border-l-2 border-red-500/40 pl-4">
                                     <details className="group">
                                       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10 [&::-webkit-details-marker]:hidden">

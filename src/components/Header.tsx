@@ -22,8 +22,9 @@ interface HeaderProps {
   onSyncStrava: () => Promise<void>;
   isAdmin: boolean;
   onAdminAction: () => void;
+  athleteName: string | null;
+  onAthleteAction: () => void;
   isSyncing: boolean;
-  isStravaConnected: boolean | null;
   stravaStatus: string;
 }
 
@@ -39,8 +40,9 @@ export const Header: React.FC<HeaderProps> = ({
   onSyncStrava,
   isAdmin,
   onAdminAction,
+  athleteName,
+  onAthleteAction,
   isSyncing,
-  isStravaConnected,
   stravaStatus,
 }) => {
   return (
@@ -110,50 +112,56 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick Buttons */}
           <div className="flex items-center gap-2">
-            {isAdmin ? (
+            {athleteName ? (
               <>
+                <span className="hidden text-xs text-gray-400 sm:inline">
+                  {athleteName}
+                </span>
                 <button
                   onClick={onSyncStrava}
-                  disabled={isSyncing || isStravaConnected === null}
-                  title={
-                    isStravaConnected
-                      ? "ดึงข้อมูลสัปดาห์นี้จาก Strava"
-                      : "เชื่อมต่อบัญชี Strava"
-                  }
-                  className="flex items-center gap-1.5 rounded-xl border border-[#fc4c02]/40 bg-[#fc4c02]/20 px-3 py-2 text-xs font-semibold text-[#fc4c02] transition hover:bg-[#fc4c02]/30"
+                  disabled={isSyncing}
+                  title="Sync your own Strava activities"
+                  className="flex items-center gap-1.5 rounded-xl border border-[#fc4c02]/40 bg-[#fc4c02]/20 px-3 py-2 text-xs font-semibold text-[#fc4c02] transition hover:bg-[#fc4c02]/30 disabled:opacity-60"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-                  <span>
-                    {isSyncing
-                      ? "กำลังซิงค์..."
-                      : isStravaConnected === null
-                      ? "กำลังตรวจสอบ..."
-                      : isStravaConnected
-                      ? "ซิงค์ Strava"
-                      : "เชื่อมต่อ Strava"}
-                  </span>
+                  <span>{isSyncing ? "กำลังซิงค์..." : "ซิงค์ Strava"}</span>
                 </button>
                 <button
-                  onClick={onOpenSettings}
-                  title="แก้ไขโปรแกรมหรือรายชื่อ"
+                  onClick={onAthleteAction}
+                  title="Sign out of athlete account"
                   className="flex items-center gap-1.5 rounded-xl border border-kmutt-border bg-kmutt-card px-3 py-2 text-xs font-semibold text-gray-300 transition hover:bg-kmutt-cardHover"
                 >
-                  <Settings className="h-3.5 w-3.5" />
-                  <span>แก้ไข</span>
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>ออกจากระบบนักกีฬา</span>
                 </button>
               </>
+            ) : (
+              <button
+                onClick={onAthleteAction}
+                title="Sign in with your Strava account to sync activities"
+                className="flex items-center gap-1.5 rounded-xl border border-[#fc4c02]/40 bg-[#fc4c02]/20 px-3 py-2 text-xs font-semibold text-[#fc4c02] transition hover:bg-[#fc4c02]/30"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>นักกีฬาเข้าสู่ระบบ</span>
+              </button>
+            )}
+            {isAdmin ? (
+              <button
+                onClick={onOpenSettings}
+                title="แก้ไขโปรแกรมหรือรายชื่อ"
+                className="flex items-center gap-1.5 rounded-xl border border-kmutt-border bg-kmutt-card px-3 py-2 text-xs font-semibold text-gray-300 transition hover:bg-kmutt-cardHover"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span>แก้ไข</span>
+              </button>
             ) : null}
             <button
               onClick={onAdminAction}
-              title={isAdmin ? "ออกจากระบบผู้ดูแล" : "เข้าสู่ระบบเพื่อซิงค์หรือแก้ไข"}
+              title={isAdmin ? "ออกจากระบบผู้ดูแล" : "เข้าสู่ระบบผู้ดูแล"}
               className="flex items-center gap-1.5 rounded-xl border border-kmutt-border bg-kmutt-card px-3 py-2 text-xs font-semibold text-gray-300 transition hover:bg-kmutt-cardHover"
             >
-              {isAdmin ? (
-                <LogOut className="h-3.5 w-3.5" />
-              ) : (
-                <LogIn className="h-3.5 w-3.5" />
-              )}
-              <span>{isAdmin ? "ออกจากระบบ" : "Admin login"}</span>
+              {isAdmin ? <LogOut className="h-3.5 w-3.5" /> : <LogIn className="h-3.5 w-3.5" />}
+              <span>{isAdmin ? "ออกจากระบบผู้ดูแล" : "Admin login"}</span>
             </button>
           </div>
         </div>

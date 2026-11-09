@@ -21,6 +21,9 @@ export interface StravaActivity {
   averageHeartrate?: number;
   isIntervalDay?: boolean;
   laps?: StravaLap[];
+  athleteId?: string;
+  athleteName?: string;
+  source?: "strava" | "manual";
 }
 
 export interface StravaLap {

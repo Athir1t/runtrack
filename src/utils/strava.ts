@@ -1,35 +1,20 @@
-import fs from "fs";
-import path from "path";
 import {
-  getStravaToken,
-  saveStravaToken,
+  getAthleteStravaToken,
+  saveAthleteStravaToken,
   StravaTokenData,
 } from "@/utils/database";
 
-const TOKEN_FILE = path.join(process.cwd(), "src/data/strava-token.json");
-
-function getLegacyToken(): StravaTokenData | null {
-  try {
-    if (fs.existsSync(TOKEN_FILE)) {
-      const data = fs.readFileSync(TOKEN_FILE, "utf-8");
-      return JSON.parse(data);
-    }
-  } catch (err) {
-    console.error("Error reading token file:", err);
-  }
-  return null;
+export async function saveToken(
+  athleteId: string,
+  tokenData: StravaTokenData
+): Promise<void> {
+  await saveAthleteStravaToken(athleteId, tokenData);
 }
 
-export async function saveToken(tokenData: StravaTokenData): Promise<void> {
-  await saveStravaToken(tokenData);
-}
-
-export async function getValidAccessToken(): Promise<string | null> {
-  let tokenData = await getStravaToken();
-  if (!tokenData) {
-    tokenData = getLegacyToken();
-    if (tokenData) await saveToken(tokenData);
-  }
+export async function getValidAccessToken(
+  athleteId: string
+): Promise<string | null> {
+  const tokenData = await getAthleteStravaToken(athleteId);
 
   const clientId = process.env.STRAVA_CLIENT_ID;
   const clientSecret = process.env.STRAVA_CLIENT_SECRET;
@@ -70,7 +55,7 @@ export async function getValidAccessToken(): Promise<string | null> {
         expires_at: refreshed.expires_at,
       };
 
-      await saveToken(updated);
+      await saveToken(athleteId, updated);
       return updated.access_token;
     } catch (err) {
       console.error("Error refreshing token:", err);

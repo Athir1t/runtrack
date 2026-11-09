@@ -17,6 +17,12 @@ interface WeeklyActivitiesResponse {
   connected: boolean;
   athleteName?: string;
   activities: StravaActivity[];
+  athleteSummaries?: Array<{
+    athleteId: string;
+    distanceKm: number;
+    runsCount: number;
+    activityDates: string[];
+  }>;
   message?: string;
   needsSync?: boolean;
 }
@@ -135,65 +141,42 @@ export default function Home() {
         return;
       }
 
-      if (!activityData.connected) {
-        setIsStravaConnected(false);
-        setAthletes(getUnsyncedRoster(savedAthletes));
-        setStravaStatus(
-          showStatus
-            ? "ยังไม่ได้เชื่อมต่อ Strava — แสดงข้อมูลสัปดาห์ที่บันทึกไว้ของ Athirit"
-            : ""
-        );
-        return;
-      }
-
-      setIsStravaConnected(true);
-      const athlete = findConnectedAthlete(savedAthletes, activityData.athleteName || "");
-      if (!athlete) {
-        setAthletes(getUnsyncedRoster(savedAthletes));
-        setStravaStatus(
-          showStatus
-            ? `ไม่พบ ${activityData.athleteName || "บัญชี Strava"} ในรายชื่อนักกีฬา`
-            : ""
-        );
-        return;
-      }
-
-      const distanceKm = activityData.activities.reduce(
-        (total, activity) => total + activity.distanceKm,
-        0
+      setIsStravaConnected(activityData.connected);
+      const summaries = new Map(
+        (activityData.athleteSummaries || []).map((summary) => [
+          summary.athleteId,
+          summary,
+        ])
       );
-      const trainingDays = new Set(
-        activityData.activities
-          .map((activity) => getTrainingWeekday(activity.startDate, weekStartDate))
-          .filter(
-            (day): day is number =>
-              day !== null && program.schedule[day] !== undefined && !program.schedule[day].isRest
-          )
-      ).size;
       setAthletes(
         savedAthletes
           .filter((item) => item.inClub)
-          .map((item) =>
-            item.id === athlete.id
-              ? {
-                  ...item,
-                  distanceKm: Number(distanceKm.toFixed(1)),
-                  runsCount: activityData.activities.length,
-                  trainingDays,
-                  isSynced: !activityData.needsSync,
-                }
-              : {
-                  ...item,
-                  distanceKm: 0,
-                  runsCount: 0,
-                  trainingDays: 0,
-                  isSynced: false,
-                }
-          )
+          .map((item) => {
+            const summary = summaries.get(item.id);
+            const trainingDays = new Set(
+              (summary?.activityDates || [])
+                .map((date) => getTrainingWeekday(`${date}T12:00:00`, weekStartDate))
+                .filter(
+                  (day): day is number =>
+                    day !== null &&
+                    program.schedule[day] !== undefined &&
+                    !program.schedule[day].isRest
+                )
+            ).size;
+            return {
+              ...item,
+              distanceKm: Number((summary?.distanceKm || 0).toFixed(1)),
+              runsCount: summary?.runsCount || 0,
+              trainingDays,
+              isSynced: Boolean(summary),
+            };
+          })
       );
       setStravaStatus(
         showStatus
-          ? `บันทึกกิจกรรมสัปดาห์นี้ใน PostgreSQL แล้ว (${activityData.activities.length} ครั้ง)`
+          ? forceRefresh
+            ? `ซิงค์กิจกรรม ${activityData.activities.length} รายการและบันทึกใน PostgreSQL แล้ว`
+            : "โหลดข้อมูลการซ้อมประจำสัปดาห์แล้ว"
           : ""
       );
     } catch (error) {
@@ -214,30 +197,53 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const error = params.get("strava_error");
+    const athleteConnected = params.get("athlete") === "connected";
     if (params.get("admin") === "login") setIsLoginOpen(true);
     if (error) {
       setStravaStatus(`เชื่อมต่อ Strava ไม่สำเร็จ: ${error}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (athleteConnected) {
+      setStravaStatus("เชื่อมต่อ Strava สำเร็จแล้ว");
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (params.has("admin")) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 
+  const [athleteSession, setAthleteSession] = useState<{
+    athleteId: string;
+    athleteName: string;
+  } | null>(null);
+
   useEffect(() => {
     let active = true;
-    fetch("/api/admin/session", { cache: "no-store" })
+    Promise.all([
+      fetch("/api/admin/session", { cache: "no-store" }),
+      fetch("/api/athletes/session", { cache: "no-store" }),
+    ])
       .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to check admin session");
-        return response.json();
+        if (response.some((item) => !item.ok)) {
+          throw new Error("Unable to check login session");
+        }
+        return Promise.all(response.map((item) => item.json()));
       })
-      .then((session: { authenticated: boolean }) => {
-        if (active) setIsAdmin(session.authenticated);
+      .then(([admin, athlete]) => {
+        if (active) {
+          setIsAdmin(admin.authenticated);
+          setAthleteSession(
+            athlete.authenticated
+              ? { athleteId: athlete.athleteId, athleteName: athlete.athleteName }
+              : null
+          );
+          setIsStravaConnected(Boolean(athlete.authenticated));
+          void loadWeekData();
+        }
       })
       .catch((error) => console.error("Error checking admin session:", error));
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadWeekData]);
 
   const handleAdminAction = async () => {
     if (!isAdmin) {
@@ -250,13 +256,33 @@ export default function Home() {
       return;
     }
     setIsAdmin(false);
+    setAthleteSession(null);
+    setIsStravaConnected(false);
     setIsSettingsOpen(false);
     setStravaStatus("ออกจากระบบผู้ดูแลแล้ว");
   };
 
+  const handleAthleteAction = async () => {
+    if (!athleteSession) {
+      window.location.assign("/api/strava/auth?flow=athlete");
+      return;
+    }
+    const response = await fetch("/api/admin/logout", { method: "POST" });
+    if (!response.ok) {
+      setStravaStatus("ออกจากระบบไม่สำเร็จ");
+      return;
+    }
+    setAthleteSession(null);
+    setIsAdmin(false);
+    setIsStravaConnected(false);
+    setIsSettingsOpen(false);
+    void loadWeekData();
+    setStravaStatus("ออกจากระบบแล้ว");
+  };
+
   const handleSyncStrava = async () => {
-    if (isStravaConnected === false) {
-      window.location.assign("/api/strava/auth");
+    if (!athleteSession) {
+      window.location.assign("/api/strava/auth?flow=athlete");
       return;
     }
     if (isStravaConnected === null) return;
@@ -337,8 +363,9 @@ export default function Home() {
         onSyncStrava={handleSyncStrava}
         isAdmin={isAdmin}
         onAdminAction={() => void handleAdminAction()}
+        athleteName={athleteSession?.athleteName || null}
+        onAthleteAction={() => void handleAthleteAction()}
         isSyncing={isSyncing}
-        isStravaConnected={isStravaConnected}
         stravaStatus={stravaStatus}
       />
 

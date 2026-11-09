@@ -1,8 +1,10 @@
 # Deployment
 
-This app can be deployed as a public, read-only site using Vercel and a hosted
-PostgreSQL provider such as Neon. Only an authenticated admin can edit data,
-connect Strava, or request a sync.
+This app can be deployed using Vercel and a hosted PostgreSQL provider such as
+Neon. Visitors can see the roster and weekly summaries. Detailed team activity
+is available after signing in with Strava, and an athlete can sync their own
+Strava activities or add app-only manual activities. Only an authenticated
+admin can edit the roster and training program.
 
 ## Before deploying
 
@@ -16,11 +18,16 @@ connect Strava, or request a sync.
   its first request. A new hosted database does not automatically copy local
   database edits or synced activity history; reconnect Strava and sync the
   weeks you need, or migrate those records separately.
-- The app stores Strava access and refresh tokens in PostgreSQL. Connect Strava
-  from the deployed site after deployment; the local token file is only read
-  once as a migration fallback and is ignored by Git.
-- This Strava integration reads the one athlete who authorizes it. It cannot
-  sync other club members' private activities merely from the club roster.
+- The app stores each athlete's Strava connection and access/refresh tokens in
+  PostgreSQL. Every athlete must sign in and authorize the app individually;
+  previously connected accounts must authorize again after this change.
+- Strava may restrict an app to a small number of athletes until multi-athlete
+  access is approved. Check the app's current Strava API access level before
+  inviting the whole team. A roster entry alone does not grant access to that
+  athlete's private activities.
+- Manual activities are stored only in this app and are never uploaded to
+  Strava. Signed-in athletes can view team activity details; anonymous visitors
+  receive only weekly summary data.
 
 ## Vercel environment variables
 
@@ -52,15 +59,18 @@ After you know the deployed hostname, set the Strava API application's
 **Authorization Callback Domain** to that hostname only (for example,
 `your-project.vercel.app`, without `https://` or a path). The app then uses
 `https://your-project.vercel.app/api/strava/callback` as the callback URL.
-Log in as admin and connect Strava from the deployed site.
+After deployment, each athlete can use **นักกีฬาเข้าสู่ระบบ** to authorize
+their own Strava account. The profile name must match exactly one active roster
+entry; ambiguous name matches are rejected. Admins use **Admin login** to edit
+the roster and training program.
 
 ## Use on a phone
 
 Open the deployed HTTPS URL in the phone browser. Anyone can view the site.
-Choose **Admin login** to sync Strava or edit the roster/program.
+Choose **นักกีฬาเข้าสู่ระบบ** to sync your own Strava activities or add manual
+activities. Choose **Admin login** to edit the roster and training program.
 
 Free hosting plans have usage and eligibility limits that can change. Check
 the current provider terms. Vercel Hobby is intended for personal, non-
 commercial projects; confirm its terms for a club site. Strava's own API
-access and athlete limits also apply. Only the athlete who authorizes Strava
-can have private activities synced by this app.
+access and athlete limits also apply.

@@ -1,26 +1,30 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
+  getAdminSessionCookieName,
+  getAthleteSessionCookieName,
+  verifyAdminSession,
+  verifyAthleteSession,
+} from "@/utils/admin-auth";
+import {
+  getAllWeeklyActivities,
+  getAthleteStravaConnection,
   getAthletes,
-  getStravaConnection,
+  getWeeklyAthleteActivitySummaries,
+  getWeeklyProgram,
   getWeeklyActivities,
   getWeeklyActivitySync,
-  getWeeklyProgram,
-  saveStravaConnection,
   saveWeeklyActivities,
   StoredStravaActivity,
   StravaLap,
 } from "@/utils/database";
 import { getValidAccessToken } from "@/utils/strava";
 import { getWorkoutType } from "@/utils/workout";
-import {
-  getAdminSessionCookieName,
-  verifyAdminSession,
-} from "@/utils/admin-auth";
-import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-interface StravaAthlete {
+interface StravaProfile {
+  id: number;
   firstname?: string;
   lastname?: string;
 }
@@ -58,19 +62,6 @@ function isValidDate(value: string): boolean {
   );
 }
 
-function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/[.…]+/g, "").trim();
-}
-
-function isMatchingAthlete(stravaName: string, profileName: string): boolean {
-  const listedName = normalizeName(stravaName);
-  const connectedName = normalizeName(profileName);
-  return (
-    listedName === connectedName ||
-    (/[.…]+$/.test(stravaName.trim()) && connectedName.startsWith(listedName))
-  );
-}
-
 function isIntervalProgram(title: string, detail?: string): boolean {
   return getWorkoutType({ title, detail }) === "interval";
 }
@@ -99,237 +90,195 @@ function toLap(lap: StravaActivityLap, index: number): StravaLap {
   };
 }
 
-async function getCachedResponse(
+function matchesProfile(profile: StravaProfile, connection: {
+  stravaAthleteId: string;
+}): boolean {
+  return String(profile.id) === connection.stravaAthleteId;
+}
+
+async function syncAthleteWeek(
   athleteId: string,
-  athleteName: string,
-  weekStart: string,
-  cachedSync: { activityCount: number; syncedAt: string }
-) {
-  const activities = (await getWeeklyActivities(athleteId, weekStart)).map(
-    (activity) => ({ ...activity, athleteName })
-  );
-  return NextResponse.json({
-    connected: true,
-    athleteName,
-    activities,
-    source: "postgres",
-    cached: true,
-    syncedAt: cachedSync.syncedAt,
+  weekStart: string
+): Promise<{ athleteName: string; syncedAt?: string }> {
+  const connection = await getAthleteStravaConnection(athleteId);
+  if (!connection) {
+    throw new Error("Connect this athlete's Strava account before syncing.");
+  }
+  const token = await getValidAccessToken(athleteId);
+  if (!token) throw new Error("Strava authorization expired. Sign in with Strava again.");
+
+  const profileResponse = await fetch("https://www.strava.com/api/v3/athlete", {
+    headers: { Authorization: "Bearer " + token },
+    cache: "no-store",
   });
+  if (!profileResponse.ok) {
+    const details = await profileResponse.text();
+    console.error(`Strava profile request failed (${profileResponse.status}): ${details}`);
+    throw new Error("Unable to verify this Strava account.");
+  }
+  const profile: StravaProfile = await profileResponse.json();
+  if (!matchesProfile(profile, connection)) {
+    throw new Error("The saved Strava connection does not match this athlete.");
+  }
+
+  const program = await getWeeklyProgram(weekStart);
+  if (!program) throw new Error("No training program exists for this week.");
+  const weekStartTime = new Date(`${weekStart}T00:00:00+07:00`).getTime();
+  const weekEndTime = weekStartTime + 7 * 24 * 60 * 60 * 1000;
+  const response = await fetch(
+    `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${Math.floor(
+      weekStartTime / 1000
+    ) - 1}&before=${Math.floor(weekEndTime / 1000)}`,
+    {
+      headers: { Authorization: "Bearer " + token },
+      cache: "no-store",
+    }
+  );
+  if (!response.ok) {
+    const details = await response.text();
+    console.error(`Strava activities request failed (${response.status}): ${details}`);
+    throw new Error("Unable to load this week's Strava activities.");
+  }
+
+  const rawActivities: unknown = await response.json();
+  if (!Array.isArray(rawActivities)) {
+    throw new Error("Strava returned an invalid activities response.");
+  }
+  const cached = await getWeeklyActivities(athleteId, weekStart);
+  const cachedById = new Map(cached.map((activity) => [activity.id, activity]));
+  const activities = (rawActivities as StravaActivity[])
+    .filter((activity) => activity.type === "Run" || activity.sport_type === "Run")
+    .map((activity) => {
+      const dayIndex = getProgramDay(activity, weekStart);
+      const schedule = dayIndex === null ? undefined : program.schedule[dayIndex];
+      const isIntervalDay = Boolean(
+        schedule && isIntervalProgram(schedule.title, schedule.detail)
+      );
+      return {
+        id: activity.id,
+        athleteId,
+        athleteName: connection.athleteName,
+        name: activity.name || "วิ่ง",
+        distanceKm: Number(((activity.distance || 0) / 1000).toFixed(3)),
+        movingTimeSeconds: activity.moving_time || 0,
+        startDate: activity.start_date || "",
+        startDateLocal: activity.start_date_local || "",
+        averageHeartrate: activity.average_heartrate,
+        isIntervalDay,
+        laps: isIntervalDay ? cachedById.get(activity.id)?.laps || [] : [],
+      } satisfies StoredStravaActivity;
+    });
+
+  const needsLaps = activities.filter(
+    (activity) => activity.isIntervalDay && activity.laps.length === 0
+  );
+  let nextLap = 0;
+  const workers = Array.from({ length: Math.min(3, needsLaps.length) }, async () => {
+    while (nextLap < needsLaps.length) {
+      const activity = needsLaps[nextLap++];
+      const lapResponse = await fetch(
+        `https://www.strava.com/api/v3/activities/${activity.id}/laps`,
+        {
+          headers: { Authorization: "Bearer " + token },
+          cache: "no-store",
+        }
+      );
+      if (!lapResponse.ok) {
+        const details = await lapResponse.text();
+        console.error(`Strava lap request failed (${lapResponse.status}): ${details}`);
+        throw new Error("Unable to load interval laps from Strava.");
+      }
+      const rawLaps: unknown = await lapResponse.json();
+      if (!Array.isArray(rawLaps)) {
+        throw new Error(`Strava returned invalid lap data for activity ${activity.id}.`);
+      }
+      activity.laps = (rawLaps as StravaActivityLap[]).map(toLap);
+    }
+  });
+  await Promise.all(workers);
+  await saveWeeklyActivities(athleteId, weekStart, activities);
+  const sync = await getWeeklyActivitySync(athleteId, weekStart);
+  return { athleteName: connection.athleteName, syncedAt: sync?.syncedAt };
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const weekStart = searchParams.get("weekStart");
   if (!weekStart || !isValidDate(weekStart)) {
-    return NextResponse.json({ message: "วันที่เริ่มสัปดาห์ไม่ถูกต้อง" }, { status: 400 });
+    return NextResponse.json({ message: "Invalid week start date." }, { status: 400 });
   }
 
   try {
-    const roster = await getAthletes();
-    const savedConnection = await getStravaConnection();
-    const forceRefresh = searchParams.get("refresh") === "1";
-    const savedSync = savedConnection
-      ? await getWeeklyActivitySync(savedConnection.athleteId, weekStart)
-      : null;
-
-    if (!forceRefresh && savedConnection && savedSync) {
-      return await getCachedResponse(
-        savedConnection.athleteId,
-        savedConnection.athleteName,
-        weekStart,
-        savedSync
-      );
-    }
-
     const cookieStore = await cookies();
+    const athleteSession = await verifyAthleteSession(
+      cookieStore.get(getAthleteSessionCookieName())?.value
+    );
     const isAdmin = await verifyAdminSession(
       cookieStore.get(getAdminSessionCookieName())?.value
     );
-    if (forceRefresh && !isAdmin) {
-      return NextResponse.json({ message: "Admin login required." }, { status: 401 });
+    const isAuthenticated = Boolean(athleteSession || isAdmin);
+    const forceRefresh = searchParams.get("refresh") === "1";
+    if (forceRefresh && !isAuthenticated) {
+      return NextResponse.json({ message: "Sign in before syncing activities." }, { status: 401 });
     }
-    if (!forceRefresh && !isAdmin) {
-      if (savedConnection) {
-        return NextResponse.json({
-          connected: true,
-          athleteName: savedConnection.athleteName,
-          activities: (await getWeeklyActivities(
-            savedConnection.athleteId,
-            weekStart
-          )).map((activity) => ({
-            ...activity,
-            athleteName: savedConnection.athleteName,
-          })),
-          source: "postgres",
-          cached: true,
-          needsSync: true,
-        });
+
+    const targetAthleteId =
+      athleteSession?.athleteId ||
+      (isAdmin ? searchParams.get("athleteId") : null);
+    let syncedAt: string | undefined;
+    let connected = false;
+    let athleteName: string | undefined;
+    if (targetAthleteId) {
+      const connection = await getAthleteStravaConnection(targetAthleteId);
+      connected = Boolean(connection);
+      athleteName = connection?.athleteName;
+      if (forceRefresh) {
+        const result = await syncAthleteWeek(targetAthleteId, weekStart);
+        connected = true;
+        athleteName = result.athleteName;
+        syncedAt = result.syncedAt;
+      } else {
+        const sync = await getWeeklyActivitySync(targetAthleteId, weekStart);
+        syncedAt = sync?.syncedAt;
       }
-      return NextResponse.json({ connected: false, activities: [] });
     }
 
-    const token = await getValidAccessToken();
-    if (!token) {
-      if (savedConnection && savedSync) {
-        return await getCachedResponse(
-          savedConnection.athleteId,
-          savedConnection.athleteName,
-          weekStart,
-          savedSync
-        );
-      }
-      return NextResponse.json({ connected: false, activities: [] });
-    }
-
-    const profileResponse = await fetch("https://www.strava.com/api/v3/athlete", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    if (!profileResponse.ok) {
-      const details = await profileResponse.text();
-      console.error(`Strava profile request failed (${profileResponse.status}): ${details}`);
-      return NextResponse.json(
-        { connected: false, message: "ไม่สามารถตรวจสอบบัญชี Strava ได้" },
-        { status: 502 }
-      );
-    }
-
-    const profile: StravaAthlete = await profileResponse.json();
-    const athleteName = [profile.firstname, profile.lastname].filter(Boolean).join(" ").trim();
-    const athlete = roster.find((item) => isMatchingAthlete(item.stravaName, athleteName));
-    if (!athlete) {
-      return NextResponse.json(
-        {
-          connected: false,
-          athleteName,
-          message: `ไม่พบ ${athleteName} ในรายชื่อนักกีฬาที่บันทึกไว้`,
-        },
-        { status: 404 }
-      );
-    }
-
-    await saveStravaConnection(athlete.id, athleteName);
-
-    const program = await getWeeklyProgram(weekStart);
-    if (!program) {
-      return NextResponse.json(
-        { connected: false, message: "ไม่พบโปรแกรมสำหรับสัปดาห์นี้" },
-        { status: 404 }
-      );
-    }
-
-    const cachedActivities = await getWeeklyActivities(athlete.id, weekStart);
-    const cachedById = new Map(cachedActivities.map((activity) => [activity.id, activity]));
-    const weekStartTime = new Date(`${weekStart}T00:00:00+07:00`).getTime();
-    const weekEndTime = weekStartTime + 7 * 24 * 60 * 60 * 1000;
-
-    const activitiesResponse = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${Math.floor(
-        weekStartTime / 1000
-      ) - 1}&before=${Math.floor(weekEndTime / 1000)}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      }
-    );
-    if (!activitiesResponse.ok) {
-      const details = await activitiesResponse.text();
-      console.error(
-        `Strava weekly activities request failed (${activitiesResponse.status}): ${details}`
-      );
-      return NextResponse.json(
-        { connected: false, message: "ไม่สามารถโหลดกิจกรรม Strava สำหรับสัปดาห์นี้ได้" },
-        { status: 502 }
-      );
-    }
-
-    const rawActivities: unknown = await activitiesResponse.json();
-    if (!Array.isArray(rawActivities)) {
-      throw new Error("Strava returned an invalid activities response");
-    }
-
-    const activities = (rawActivities as StravaActivity[])
-      .filter((activity) => activity.type === "Run" || activity.sport_type === "Run")
-      .map((activity) => {
-        const dayIndex = getProgramDay(activity, weekStart);
-        const dayProgram = dayIndex === null ? undefined : program.schedule[dayIndex];
-        const isIntervalDay = Boolean(
-          dayProgram && isIntervalProgram(dayProgram.title, dayProgram.detail)
-        );
-        const cached = cachedById.get(activity.id);
-        return {
-          id: activity.id,
-          athleteId: athlete.id,
-          athleteName,
-          name: activity.name || "วิ่ง",
-          distanceKm: Number(((activity.distance || 0) / 1000).toFixed(3)),
-          movingTimeSeconds: activity.moving_time || 0,
-          startDate: activity.start_date || "",
-          startDateLocal: activity.start_date_local || "",
-          averageHeartrate: activity.average_heartrate,
-          isIntervalDay,
-          laps: isIntervalDay ? cached?.laps || [] : [],
-        } satisfies StoredStravaActivity;
-      });
-
-    const intervalActivitiesNeedingLaps = activities.filter(
-      (activity) => activity.isIntervalDay && activity.laps.length === 0
-    );
-    let nextLap = 0;
-    const workers = Array.from(
-      { length: Math.min(3, intervalActivitiesNeedingLaps.length) },
-      async () => {
-        while (nextLap < intervalActivitiesNeedingLaps.length) {
-          const activity = intervalActivitiesNeedingLaps[nextLap++];
-          const response = await fetch(
-            `https://www.strava.com/api/v3/activities/${activity.id}/laps`,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-              cache: "no-store",
-            }
-          );
-          if (!response.ok) {
-            const details = await response.text();
-            console.error(
-              `Strava lap request failed (${response.status}) for activity ${activity.id}: ${details}`
-            );
-            throw new Error(
-              "ไม่สามารถโหลดรอบวิ่ง interval จาก Strava ได้ ข้อมูลกิจกรรมยังไม่ถูกบันทึก"
-            );
-          }
-          const rawLaps: unknown = await response.json();
-          if (!Array.isArray(rawLaps)) {
-            throw new Error(`Strava returned invalid lap data for activity ${activity.id}`);
-          }
-          activity.laps = (rawLaps as StravaActivityLap[]).map(toLap);
-        }
-      }
-    );
-    await Promise.all(workers);
-
-    await saveWeeklyActivities(athlete.id, weekStart, activities);
-    const sync = await getWeeklyActivitySync(athlete.id, weekStart);
+    const summaries = await getWeeklyAthleteActivitySummaries(weekStart);
+    const roster = await getAthletes();
+    const athleteNames = new Map(roster.map((athlete) => [athlete.id, athlete.nickname]));
+    const athleteSummaries = summaries.map((summary) => ({
+      ...summary,
+      athleteName: athleteNames.get(summary.athleteId) || summary.athleteId,
+    }));
+    const requestedAthleteId = searchParams.get("athleteId");
+    const activities = isAuthenticated
+      ? (await getAllWeeklyActivities(weekStart))
+          .filter(
+            (activity) =>
+              !requestedAthleteId || activity.athleteId === requestedAthleteId
+          )
+          .map((activity) => ({
+          ...activity,
+          athleteName: athleteNames.get(activity.athleteId) || activity.athleteId,
+          }))
+      : [];
 
     return NextResponse.json({
-      connected: true,
+      authenticated: isAuthenticated,
+      connected,
       athleteName,
       activities,
-      source: "strava",
-      cached: false,
-      syncedAt: sync?.syncedAt,
+      athleteSummaries,
+      source: "postgres",
+      cached: !forceRefresh,
+      syncedAt,
     });
   } catch (error) {
-    console.error("Error loading and saving weekly Strava data:", error);
-    return NextResponse.json(
-      {
-        connected: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "เกิดข้อผิดพลาดขณะโหลดกิจกรรม Strava",
-      },
-      { status: 503 }
-    );
+    console.error("Error loading weekly athlete activities:", error);
+    const message = error instanceof Error ? error.message : "Unable to load activities.";
+    const status = /sign in|connect .*strava|authorization expired/i.test(message)
+      ? 401
+      : 503;
+    return NextResponse.json({ message }, { status });
   }
 }

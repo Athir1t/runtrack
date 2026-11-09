@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAthletes, getRecentAthleteActivities } from "@/utils/database";
+import {
+  getRequestAthleteSession,
+  isAdminRequest,
+} from "@/utils/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +11,10 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!(await isAdminRequest(_request)) && !(await getRequestAthleteSession(_request))) {
+    return NextResponse.json({ message: "Sign in to view athlete activities." }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
     const athletes = await getAthletes();
@@ -25,7 +33,7 @@ export async function GET(
     return NextResponse.json({
       activities: activities.map((activity) => ({
         ...activity,
-        athleteName: athlete.stravaName,
+        athleteName: athlete.nickname,
       })),
       source: "postgres",
     });

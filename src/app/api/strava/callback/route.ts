@@ -2,8 +2,20 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { saveToken } from "@/utils/strava";
 import { getAthletes, saveStravaConnection } from "@/utils/database";
+import {
+  createAthleteSession,
+  getAdminSessionCookieOptions,
+  getAthleteSessionCookieName,
+} from "@/utils/admin-auth";
 
 const OAUTH_STATE_COOKIE = "runtrack_strava_state";
+const OAUTH_FLOW_COOKIE = "runtrack_strava_flow";
+
+interface StravaProfile {
+  id: number;
+  firstname?: string;
+  lastname?: string;
+}
 
 function normalizeName(name: string): string {
   return name.toLowerCase().replace(/[.…]+/g, "").trim();
@@ -20,6 +32,12 @@ export async function GET(req: Request) {
     .map((item) => item.trim())
     .find((item) => item.startsWith(`${OAUTH_STATE_COOKIE}=`))
     ?.slice(OAUTH_STATE_COOKIE.length + 1);
+  const flow = req.headers
+    .get("cookie")
+    ?.split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${OAUTH_FLOW_COOKIE}=`))
+    ?.slice(OAUTH_FLOW_COOKIE.length + 1);
   const redirectWithError = (reason: string) =>
     clearStateCookie(NextResponse.redirect(`${origin}?strava_error=${reason}`));
 
@@ -69,33 +87,50 @@ export async function GET(req: Request) {
       return redirectWithError("profile_lookup_failed");
     }
 
-    const profile = await profileResponse.json();
+    const profile: StravaProfile = await profileResponse.json();
+    if (!Number.isSafeInteger(profile.id) || profile.id <= 0) {
+      return redirectWithError("invalid_profile");
+    }
     const athleteName = [profile.firstname, profile.lastname]
       .filter(Boolean)
       .join(" ")
       .trim();
     const normalizedName = normalizeName(athleteName);
     const athletes = await getAthletes();
-    const athlete = athletes.find((item) => {
+    const matches = athletes.filter((item) => {
+      if (!item.inClub || !item.stravaName.trim()) return false;
       const listedName = normalizeName(item.stravaName);
       return (
         listedName === normalizedName ||
         (/[.…]+$/.test(item.stravaName.trim()) &&
+          listedName.length > 0 &&
           normalizedName.startsWith(listedName))
       );
     });
 
-    if (!athlete) {
+    if (matches.length === 0) {
       return redirectWithError("athlete_not_in_roster");
     }
-    await saveToken({
+    if (matches.length > 1) {
+      return redirectWithError("athlete_match_ambiguous");
+    }
+    const athlete = matches[0];
+    await saveStravaConnection(athlete.id, String(profile.id), athleteName);
+    await saveToken(athlete.id, {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
       expires_at: tokenData.expires_at,
     });
-    await saveStravaConnection(athlete.id, athleteName);
 
-    return clearStateCookie(NextResponse.redirect(`${origin}?strava=connected`));
+    const response = NextResponse.redirect(
+      `${origin}?${flow === "athlete" ? "athlete=connected" : "strava=connected"}`
+    );
+    response.cookies.set(
+      getAthleteSessionCookieName(),
+      await createAthleteSession(athlete.id, athleteName),
+      { ...getAdminSessionCookieOptions(), sameSite: "lax" }
+    );
+    return clearStateCookie(response);
   } catch (err) {
     console.error("Strava callback error:", err);
     return redirectWithError("unknown");
@@ -104,6 +139,13 @@ export async function GET(req: Request) {
 
 function clearStateCookie(response: NextResponse): NextResponse {
   response.cookies.set(OAUTH_STATE_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/strava/callback",
+    maxAge: 0,
+  });
+  response.cookies.set(OAUTH_FLOW_COOKIE, "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

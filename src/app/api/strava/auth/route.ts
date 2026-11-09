@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { isAdminRequest } from "@/utils/admin-auth";
 
 const OAUTH_STATE_COOKIE = "runtrack_strava_state";
+const OAUTH_FLOW_COOKIE = "runtrack_strava_flow";
 
 export async function GET(req: Request) {
-  if (!(await isAdminRequest(req))) {
-    return NextResponse.redirect(new URL("/?admin=login", req.url));
-  }
-
   const clientId = process.env.STRAVA_CLIENT_ID;
-  const { origin } = new URL(req.url);
+  const requestUrl = new URL(req.url);
+  const { origin } = requestUrl;
   if (!clientId) {
     return NextResponse.json(
       { error: "Strava OAuth is not configured." },
@@ -30,6 +27,13 @@ export async function GET(req: Request) {
     )}&state=${encodeURIComponent(state)}`
   );
   response.cookies.set(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/strava/callback",
+    maxAge: 600,
+  });
+  response.cookies.set(OAUTH_FLOW_COOKIE, "athlete", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
