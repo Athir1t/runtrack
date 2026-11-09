@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+.vercel/
+.env*
+!.env.example
+src/data/strava-token.json
+*.tsbuildinfo
+npm-debug.log*

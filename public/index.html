@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KMUTT ATHLETICS × TUMPANG GAMES | เช็คการซ้อม</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            kmutt: {
+              orange: '#ff5e14',
+              orangeLight: '#ff7a38',
+              dark: '#0e1317',
+              card: '#161c22',
+              cardHover: '#1d252d',
+              border: '#252e37'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0e1317;
+      color: #f3f4f6;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    /* Smooth custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0e1317; }
+    ::-webkit-scrollbar-thumb { background: #252e37; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #ff5e14; }
+  </style>
+</head>
+<body class="min-h-screen p-4 sm:p-6 md:p-8">
+  <div class="max-w-5xl mx-auto">
+    
+    <!-- Top Header & Team Stats -->
+    <header class="mb-6 border-b border-kmutt-border pb-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-kmutt-orange animate-pulse"></span>
+            <span class="text-kmutt-orange font-bold text-xs sm:text-sm tracking-widest uppercase">
+              KMUTT ATHLETICS × TUMPANG GAMES
+            </span>
+          </div>
+          <h1 class="text-3xl md:text-4xl font-extrabold text-white mt-1 tracking-tight">
+            เช็คการซ้อมตามโปรแกรม
+          </h1>
+          <p id="weekTitleDisplay" class="text-gray-400 text-sm mt-0.5">สัปดาห์ที่ 1 : 2-7 November</p>
+        </div>
+
+        <!-- Right Side Stats & Actions -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-4 bg-kmutt-card border border-kmutt-border px-4 py-2.5 rounded-xl shadow-lg">
+            <div class="text-right">
+              <div class="text-2xl md:text-3xl font-black text-white leading-none">
+                <span id="completedCountDisplay">8</span>
+                <span class="text-base text-gray-500 font-normal"> / <span id="totalAthletesDisplay">21</span></span>
+              </div>
+              <div class="text-[11px] text-gray-400 font-medium mt-0.5">คนครบโปรแกรม</div>
+            </div>
+
+            <div class="h-8 w-px bg-kmutt-border"></div>
+
+            <div class="text-right">
+              <div class="text-2xl md:text-3xl font-black text-white leading-none">
+                <span id="totalTeamKmDisplay">622.8</span>
+              </div>
+              <div class="text-[11px] text-gray-400 font-medium mt-0.5">กม. รวมทั้งทีม</div>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex items-center gap-2">
+            <button id="btnSyncStrava" onclick="syncStrava()" class="flex items-center gap-1.5 px-3.5 py-2 bg-[#fc4c02]/20 hover:bg-[#fc4c02]/30 text-[#fc4c02] border border-[#fc4c02]/40 rounded-xl text-xs font-semibold transition active:scale-95 shadow">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="syncIcon"></i>
+              <span id="syncText">ซิงค์ Strava</span>
+            </button>
+            <button onclick="openModal()" class="flex items-center gap-1.5 px-3.5 py-2 bg-kmutt-card hover:bg-kmutt-cardHover text-gray-300 border border-kmutt-border rounded-xl text-xs font-semibold transition active:scale-95 shadow">
+              <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+              <span>แก้ไข</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast / Status alert -->
+      <div id="statusToast" class="hidden mt-3 text-xs bg-kmutt-orange/15 border border-kmutt-orange/30 text-kmutt-orangeLight px-3.5 py-2 rounded-xl flex items-center justify-between">
+        <span id="statusMessage">กำลังโหลดข้อมูล...</span>
+        <div class="flex items-center gap-2">
+          <a id="stravaAuthBtn" href="/api/strava/auth" class="hidden underline font-bold hover:text-white">เชื่อมต่อ Strava ตอนนี้</a>
+          <button onclick="hideStatusToast()" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Weekly Program Grid (7 Days) -->
+    <section class="mb-6">
+      <div id="weeklyScheduleGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
+        <!-- Injected via JavaScript -->
+      </div>
+
+      <!-- Criteria Banner -->
+      <div class="mt-3 bg-kmutt-card/80 border border-kmutt-border px-4 py-2.5 rounded-xl text-xs text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="text-green-400 font-semibold">• ครบโปรแกรม:</span>
+        <span id="criteriaFullText">วิ่ง 6 ครั้งขึ้นไป และได้ 90% ของโปรแกรม</span>
+        <span class="text-gray-600 hidden sm:inline">|</span>
+        <span class="text-amber-400 font-semibold">• เกือบครบ:</span>
+        <span id="criteriaAlmostText">4 ครั้งขึ้นไป และได้ 65%</span>
+        <span class="text-gray-600 hidden sm:inline">|</span>
+        <span class="text-gray-300" id="criteriaVolumeText">% เทียบปริมาณทั้งสัปดาห์ (ชาย 46 กม. · หญิง 42 กม.) ไม่ต้องตรงวัน</span>
+      </div>
+    </section>
+
+    <!-- Athlete Leaderboard Table -->
+    <section class="bg-kmutt-card border border-kmutt-border rounded-2xl overflow-hidden shadow-2xl">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-200">
+          <thead>
+            <tr class="border-b border-kmutt-border/80 text-gray-400 text-xs font-semibold uppercase tracking-wider bg-black/20">
+              <th class="py-3 px-4 w-12 text-center">#</th>
+              <th class="py-3 px-4">นักกีฬา</th>
+              <th class="py-3 px-4 text-right">ระยะ</th>
+              <th class="py-3 px-4 text-center">ครั้ง</th>
+              <th class="py-3 px-4 text-center">% โปรแกรม</th>
+              <th class="py-3 px-4 text-right">สถานะ</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardTbody" class="divide-y divide-kmutt-border/50 font-medium">
+            <!-- Injected via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Alert for Athletes Not in Club -->
+      <div id="notInClubAlert" class="bg-[#24130b] border-t border-kmutt-orange/30 px-4 py-3 flex items-start sm:items-center gap-2.5 text-xs text-kmutt-orangeLight">
+        <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 mt-0.5 sm:mt-0 text-kmutt-orange"></i>
+        <div>
+          <span class="font-bold text-kmutt-orange">ยังไม่เข้าคลับ Strava <span id="notInClubCount">0</span> คน:</span>
+          <span id="notInClubNames" class="ml-1"></span>
+          <span class="text-gray-400 ml-1.5">— ยังไม่มีข้อมูลการซ้อม</span>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="px-4 py-2.5 bg-black/30 border-t border-kmutt-border/40 text-[11px] text-gray-500 text-center sm:text-left">
+        ข้อมูลจากตารางอันดับคลับบน Strava · % เทียบปริมาณทั้งสัปดาห์ ไม่ได้ดูรายวัน
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Edit Modal Drawer -->
+  <div id="editModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-kmutt-card border border-kmutt-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-kmutt-border bg-black/30">
+        <div class="flex items-center gap-4">
+          <h2 class="text-xl font-bold text-white">แก้ไขข้อมูลระบบ</h2>
+          <div class="flex gap-2 bg-black/40 p-1 rounded-lg border border-kmutt-border">
+            <button id="tabBtnProgram" onclick="switchTab('program')" class="px-3 py-1 rounded text-xs font-semibold bg-kmutt-orange text-white transition">โปรแกรมซ้อม</button>
+            <button id="tabBtnAthletes" onclick="switchTab('athletes')" class="px-3 py-1 rounded text-xs font-semibold text-gray-400 hover:text-white transition">รายชื่อนักกีฬา (<span id="modalAthletesCount">0</span>)</button>
+          </div>
+        </div>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition text-xl">&times;</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-gray-200">
+        
+        <!-- Tab 1: Program -->
+        <div id="tabContentProgram" class="space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-black/20 p-4 rounded-xl border border-kmutt-border">
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">หัวข้อสัปดาห์</label>
+              <input id="modalWeekTitle" type="text" class="w-full bg-[#111619] border border-kmutt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-kmutt-orange" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">เป้าหมายระยะ ชาย (กม.)</label>
+              <input id="modalTargetMale" type="number" step="0.5" class="w-full bg-[#111619] border border-kmutt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-kmutt-orange" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">เป้าหมายระยะ หญิง (กม.)</label>
+              <input id="modalTargetFemale" type="number" step="0.5" class="w-full bg-[#111619] border border-kmutt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-kmutt-orange" />
+            </div>
+          </div>
+
+          <div>
+            <h3 class="text-sm font-bold text-white mb-3">โปรแกรมรายวัน (จันทร์ - อาทิตย์)</h3>
+            <div id="modalDaysContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <!-- Injected via JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Athletes -->
+        <div id="tabContentAthletes" class="hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-gray-400">จับคู่ชื่อเล่นนักกีฬา กับชื่อบน Strava และสามารถแก้ไขระยะทางหรือครั้งได้โดยตรง</p>
+            <button onclick="addAthleteRow()" class="flex items-center gap-1 px-3 py-1.5 bg-kmutt-orange hover:bg-kmutt-orangeLight text-white rounded-lg text-xs font-semibold transition">
+              <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+              <span>เพิ่มนักกีฬา</span>
+            </button>
+          </div>
+
+          <div class="border border-kmutt-border rounded-xl overflow-hidden max-h-96 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-black/40 border-b border-kmutt-border text-gray-400 sticky top-0">
+                <tr>
+                  <th class="py-2.5 px-3">ชื่อเล่น</th>
+                  <th class="py-2.5 px-3">ชื่อ Strava</th>
+                  <th class="py-2.5 px-3">เพศ</th>
+                  <th class="py-2.5 px-3">ระยะ (กม.)</th>
+                  <th class="py-2.5 px-3">ครั้ง</th>
+                  <th class="py-2.5 px-3 text-center">เข้าคลับ</th>
+                  <th class="py-2.5 px-3 text-center">ลบ</th>
+                </tr>
+              </thead>
+              <tbody id="modalAthletesTbody" class="divide-y divide-kmutt-border/60">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-kmutt-border bg-black/40">
+        <button onclick="closeModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white transition">ยกเลิก</button>
+        <button onclick="saveChanges()" id="btnSaveModal" class="flex items-center gap-1.5 px-5 py-2 bg-kmutt-orange hover:bg-kmutt-orangeLight text-white rounded-xl text-xs font-bold transition shadow-lg shadow-kmutt-orange/20">
+          <i data-lucide="save" class="w-4 h-4"></i>
+          <span>บันทึกข้อมูล</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    let programData = null;
+    let athletesData = [];
+
+    // Initialize
+    async function init() {
+      try {
+        const [pRes, aRes] = await Promise.all([
+          fetch('/api/program').then(r => r.json()),
+          fetch('/api/athletes').then(r => r.json())
+        ]);
+        programData = pRes;
+        athletesData = aRes;
+        renderAll();
+      } catch (err) {
+        showStatus('ไม่สามารถเชื่อมต่อ API ได้: ' + err.message, false);
+      }
+
+      // Check URL query parameters
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('strava') === 'connected') {
+        showStatus('✓ เชื่อมต่อบัญชี Strava สำเร็จแล้ว!', true);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (params.get('strava_error')) {
+        showStatus('เชื่อมต่อ Strava ไม่สำเร็จ: ' + params.get('strava_error'), false);
+      }
+    }
+
+    function renderAll() {
+      if (!programData || !athletesData) return;
+
+      // 1. Program Header & Criteria
+      document.getElementById('weekTitleDisplay').innerText = programData.weekTitle;
+      document.getElementById('criteriaFullText').innerText = `วิ่ง ${programData.criteria.fullMinRuns} ครั้งขึ้นไป และได้ ${programData.criteria.fullMinPercent}% ของโปรแกรม`;
+      document.getElementById('criteriaAlmostText').innerText = `${programData.criteria.almostMinRuns} ครั้งขึ้นไป และได้ ${programData.criteria.almostMinPercent}%`;
+      document.getElementById('criteriaVolumeText').innerText = `% เทียบปริมาณทั้งสัปดาห์ (ชาย ${programData.targetMaleKm} กม. · หญิง ${programData.targetFemaleKm} กม.) ไม่ต้องตรงวัน`;
+
+      // 2. Weekly Schedule Cards
+      const scheduleContainer = document.getElementById('weeklyScheduleGrid');
+      scheduleContainer.innerHTML = programData.schedule.map(item => `
+        <div class="p-3 rounded-xl border flex flex-col justify-between min-h-[96px] ${
+          item.isRest 
+            ? 'bg-[#14181c] border-kmutt-border/60 text-gray-500' 
+            : item.isRace 
+            ? 'bg-kmutt-orange/10 border-kmutt-orange/40 text-white' 
+            : 'bg-kmutt-card border-kmutt-border text-gray-200'
+        }">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold px-1.5 py-0.5 rounded ${
+              item.isRace ? 'bg-kmutt-orange text-white' : 'bg-kmutt-border text-kmutt-orange font-semibold'
+            }">${item.day}</span>
+            ${item.isRace ? '<span class="text-[10px] uppercase font-bold text-kmutt-orange">Race</span>' : ''}
+          </div>
+          <div class="mt-2">
+            <div class="font-bold text-sm text-white leading-tight">${item.title}</div>
+            ${item.subtitle ? `<div class="text-xs text-gray-400 mt-0.5">${item.subtitle}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      // 3. Evaluate Athletes
+      const inClub = athletesData.filter(a => a.inClub);
+      const notInClub = athletesData.filter(a => !a.inClub);
+
+      // Sort by distance descending
+      const sorted = [...inClub].sort((a, b) => {
+        if (b.distanceKm !== a.distanceKm) return b.distanceKm - a.distanceKm;
+        return b.runsCount - a.runsCount;
+      });
+
+      let completedCount = 0;
+      let totalTeamKm = 0;
+
+      const ranked = sorted.map((ath, idx) => {
+        const target = ath.gender === 'F' ? programData.targetFemaleKm : programData.targetMaleKm;
+        const pct = target > 0 ? Math.round((ath.distanceKm / target) * 100) : 0;
+        let status = 'incomplete';
+
+        if (ath.runsCount >= programData.criteria.fullMinRuns && pct >= programData.criteria.fullMinPercent) {
+          status = 'completed';
+          completedCount++;
+        } else if (ath.runsCount >= programData.criteria.almostMinRuns && pct >= programData.criteria.almostMinPercent) {
+          status = 'almost';
+        }
+
+        totalTeamKm += (ath.distanceKm || 0);
+
+        return { ...ath, rank: idx + 1, target, percent: pct, status };
+      });
+
+      // Update counters
+      document.getElementById('completedCountDisplay').innerText = completedCount;
+      document.getElementById('totalAthletesDisplay').innerText = athletesData.length;
+      document.getElementById('totalTeamKmDisplay').innerText = totalTeamKm.toFixed(1);
+
+      // 4. Render Leaderboard Table
+      const tbody = document.getElementById('leaderboardTbody');
+      tbody.innerHTML = ranked.map(ath => `
+        <tr class="hover:bg-kmutt-cardHover/70 transition-colors">
+          <td class="py-3 px-4 text-center font-bold text-gray-400">${ath.rank}</td>
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-full bg-kmutt-border flex items-center justify-center font-bold text-xs text-white uppercase border border-white/10 shrink-0">
+                ${ath.nickname.slice(0, 2)}
+              </div>
+              <div>
+                <div class="font-bold text-white text-base leading-tight">
+                  ${ath.nickname}
+                  <span class="text-[11px] font-normal text-gray-500 ml-1.5">(${ath.gender === 'F' ? 'หญิง' : 'ชาย'})</span>
+                </div>
+                ${ath.stravaName ? `<div class="text-[11px] text-gray-400 truncate max-w-[140px] sm:max-w-xs">Strava: ${ath.stravaName}</div>` : ''}
+              </div>
+            </div>
+          </td>
+          <td class="py-3 px-4 text-right">
+            <span class="text-base font-extrabold text-white">${ath.distanceKm.toFixed(1)}</span>
+            <span class="text-xs text-gray-400 font-normal">กม.</span>
+          </td>
+          <td class="py-3 px-4 text-center text-base font-bold text-white">${ath.runsCount}</td>
+          <td class="py-3 px-4 text-center font-bold text-sm">
+            <span class="${ath.status === 'completed' ? 'text-green-400' : 'text-gray-300'}">${ath.percent}%</span>
+          </td>
+          <td class="py-3 px-4 text-right">
+            ${
+              ath.status === 'completed' 
+                ? '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#063319] text-[#4ade80] border border-[#166534]">ครบโปรแกรม</span>'
+                : ath.status === 'almost'
+                ? '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#3f2105] text-[#fbbf24] border border-[#854d0e]">เกือบครบ</span>'
+                : '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#1f2937] text-[#9ca3af] border border-[#374151]">ยังไม่ครบ</span>'
+            }
+          </td>
+        </tr>
+      `).join('');
+
+      // 5. Not In Club Banner
+      const notInClubAlert = document.getElementById('notInClubAlert');
+      if (notInClub.length > 0) {
+        notInClubAlert.classList.remove('hidden');
+        document.getElementById('notInClubCount').innerText = notInClub.length;
+        document.getElementById('notInClubNames').innerText = notInClub.map(a => a.nickname).join(' · ');
+      } else {
+        notInClubAlert.classList.add('hidden');
+      }
+
+      // Re-trigger lucide icons rendering
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+
+    // Strava Sync
+    async function syncStrava() {
+      const syncBtn = document.getElementById('btnSyncStrava');
+      const syncIcon = document.getElementById('syncIcon');
+      const syncText = document.getElementById('syncText');
+
+      syncBtn.disabled = true;
+      syncIcon.classList.add('animate-spin');
+      syncText.innerText = 'กำลังซิงค์...';
+
+      try {
+        const res = await fetch('/api/strava/sync');
+        const data = await res.json();
+        if (data.connected && data.updatedAthletes) {
+          athletesData = data.updatedAthletes;
+          renderAll();
+          showStatus(`✓ ซิงค์กิจกรรม Strava สำเร็จ (${data.activitiesCount} รายการล่าสุด)`, true);
+        } else if (!data.connected) {
+          showStatus(data.message || 'กรุณาเชื่อมต่อ Strava ก่อนทำการซิงค์', false, true);
+        } else {
+          showStatus('ซิงค์ไม่สำเร็จ: ' + (data.message || 'เกิดข้อผิดพลาด'), false);
+        }
+      } catch (e) {
+        showStatus('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + e.message, false);
+      } finally {
+        syncBtn.disabled = false;
+        syncIcon.classList.remove('animate-spin');
+        syncText.innerText = 'ซิงค์ Strava';
+      }
+    }
+
+    function showStatus(msg, isSuccess, showAuthLink = false) {
+      const toast = document.getElementById('statusToast');
+      const msgSpan = document.getElementById('statusMessage');
+      const authLink = document.getElementById('stravaAuthBtn');
+
+      toast.classList.remove('hidden');
+      msgSpan.innerText = msg;
+      if (showAuthLink) {
+        authLink.classList.remove('hidden');
+      } else {
+        authLink.classList.add('hidden');
+      }
+    }
+
+    function hideStatusToast() {
+      document.getElementById('statusToast').classList.add('hidden');
+    }
+
+    // Modal Drawer logic
+    function openModal() {
+      document.getElementById('editModal').classList.remove('hidden');
+      // Populate fields
+      document.getElementById('modalWeekTitle').value = programData.weekTitle;
+      document.getElementById('modalTargetMale').value = programData.targetMaleKm;
+      document.getElementById('modalTargetFemale').value = programData.targetFemaleKm;
+      document.getElementById('modalAthletesCount').innerText = athletesData.length;
+
+      // Populate Days
+      const daysContainer = document.getElementById('modalDaysContainer');
+      daysContainer.innerHTML = programData.schedule.map((item, idx) => `
+        <div class="bg-black/20 border border-kmutt-border p-3 rounded-xl flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-kmutt-orange text-sm">วัน${item.day}</span>
+            <div class="flex items-center gap-3 text-xs">
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" id="modalDayRest_${idx}" ${item.isRest ? 'checked' : ''} />
+                <span>พัก (Rest)</span>
+              </label>
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" id="modalDayRace_${idx}" ${item.isRace ? 'checked' : ''} />
+                <span>แข่ง (Race)</span>
+              </label>
+            </div>
+          </div>
+          <input type="text" id="modalDayTitle_${idx}" value="${item.title}" placeholder="เช่น 400 ม. x 15" class="bg-[#111619] border border-kmutt-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-kmutt-orange" />
+          <input type="text" id="modalDaySubtitle_${idx}" value="${item.subtitle || ''}" placeholder="หมายเหตุย่อย" class="bg-[#111619] border border-kmutt-border rounded-lg px-3 py-1 text-gray-400 text-xs focus:outline-none focus:border-kmutt-orange" />
+        </div>
+      `).join('');
+
+      renderModalAthletesTable();
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.add('hidden');
+    }
+
+    function switchTab(tab) {
+      const pTab = document.getElementById('tabContentProgram');
+      const aTab = document.getElementById('tabContentAthletes');
+      const pBtn = document.getElementById('tabBtnProgram');
+      const aBtn = document.getElementById('tabBtnAthletes');
+
+      if (tab === 'program') {
+        pTab.classList.remove('hidden');
+        aTab.classList.add('hidden');
+        pBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-kmutt-orange text-white transition';
+        aBtn.className = 'px-3 py-1 rounded text-xs font-semibold text-gray-400 hover:text-white transition';
+      } else {
+        pTab.classList.add('hidden');
+        aTab.classList.remove('hidden');
+        pBtn.className = 'px-3 py-1 rounded text-xs font-semibold text-gray-400 hover:text-white transition';
+        aBtn.className = 'px-3 py-1 rounded text-xs font-semibold bg-kmutt-orange text-white transition';
+      }
+    }
+
+    function renderModalAthletesTable() {
+      const tbody = document.getElementById('modalAthletesTbody');
+      tbody.innerHTML = athletesData.map((ath, idx) => `
+        <tr class="hover:bg-white/5">
+          <td class="py-2 px-3">
+            <input type="text" value="${ath.nickname}" onchange="athletesData[${idx}].nickname = this.value" class="bg-[#111619] border border-kmutt-border rounded px-2 py-1 text-white w-24" />
+          </td>
+          <td class="py-2 px-3">
+            <input type="text" value="${ath.stravaName || ''}" onchange="athletesData[${idx}].stravaName = this.value" class="bg-[#111619] border border-kmutt-border rounded px-2 py-1 text-gray-300 w-36" />
+          </td>
+          <td class="py-2 px-3">
+            <select onchange="athletesData[${idx}].gender = this.value" class="bg-[#111619] border border-kmutt-border rounded px-2 py-1 text-white">
+              <option value="M" ${ath.gender === 'M' ? 'selected' : ''}>ชาย</option>
+              <option value="F" ${ath.gender === 'F' ? 'selected' : ''}>หญิง</option>
+            </select>
+          </td>
+          <td class="py-2 px-3">
+            <input type="number" step="0.1" value="${ath.distanceKm}" onchange="athletesData[${idx}].distanceKm = parseFloat(this.value) || 0" class="bg-[#111619] border border-kmutt-border rounded px-2 py-1 text-white w-20" />
+          </td>
+          <td class="py-2 px-3">
+            <input type="number" value="${ath.runsCount}" onchange="athletesData[${idx}].runsCount = parseInt(this.value) || 0" class="bg-[#111619] border border-kmutt-border rounded px-2 py-1 text-white w-16" />
+          </td>
+          <td class="py-2 px-3 text-center">
+            <input type="checkbox" ${ath.inClub ? 'checked' : ''} onchange="athletesData[${idx}].inClub = this.checked" />
+          </td>
+          <td class="py-2 px-3 text-center">
+            <button onclick="removeAthleteRow(${idx})" class="text-red-400 hover:text-red-300 p-1">&times;</button>
+          </td>
+        </tr>
+      `).join('');
+      document.getElementById('modalAthletesCount').innerText = athletesData.length;
+    }
+
+    function addAthleteRow() {
+      athletesData.push({
+        id: Date.now().toString(),
+        nickname: "นักกีฬาใหม่",
+        stravaName: "",
+        gender: "M",
+        distanceKm: 0,
+        runsCount: 0,
+        inClub: true
+      });
+      renderModalAthletesTable();
+    }
+
+    function removeAthleteRow(idx) {
+      athletesData.splice(idx, 1);
+      renderModalAthletesTable();
+    }
+
+    async function saveChanges() {
+      const btn = document.getElementById('btnSaveModal');
+      btn.disabled = true;
+      btn.innerText = 'กำลังบันทึก...';
+
+      // Read program inputs
+      programData.weekTitle = document.getElementById('modalWeekTitle').value;
+      programData.targetMaleKm = parseFloat(document.getElementById('modalTargetMale').value) || 46;
+      programData.targetFemaleKm = parseFloat(document.getElementById('modalTargetFemale').value) || 42;
+
+      programData.schedule.forEach((item, idx) => {
+        item.title = document.getElementById(`modalDayTitle_${idx}`).value;
+        item.subtitle = document.getElementById(`modalDaySubtitle_${idx}`).value;
+        item.isRest = document.getElementById(`modalDayRest_${idx}`).checked;
+        item.isRace = document.getElementById(`modalDayRace_${idx}`).checked;
+      });
+
+      try {
+        await Promise.all([
+          fetch('/api/program', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(programData)
+          }),
+          fetch('/api/athletes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(athletesData)
+          })
+        ]);
+        renderAll();
+        closeModal();
+        showStatus('✓ บันทึกข้อมูลสำเร็จเรียบร้อยแล้ว!', true);
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i><span>บันทึกข้อมูล</span>';
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

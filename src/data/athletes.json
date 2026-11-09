@@ -1,0 +1,191 @@
+[
+  {
+    "id": "1",
+    "nickname": "กิต",
+    "stravaName": "ร้อยห้าสิบ150 สามร้...",
+    "gender": "M",
+    "distanceKm": 67.1,
+    "runsCount": 15,
+    "inClub": true
+  },
+  {
+    "id": "2",
+    "nickname": "กวิน",
+    "stravaName": "Kankawin Pintha",
+    "gender": "M",
+    "distanceKm": 57.3,
+    "runsCount": 12,
+    "inClub": true
+  },
+  {
+    "id": "3",
+    "nickname": "เหยา",
+    "stravaName": "Rangsiman Jerabun...",
+    "gender": "M",
+    "distanceKm": 53.2,
+    "runsCount": 25,
+    "inClub": true
+  },
+  {
+    "id": "4",
+    "nickname": "นนท์",
+    "stravaName": "Athirit Yangwanitset",
+    "gender": "M",
+    "distanceKm": 49.4,
+    "runsCount": 7,
+    "inClub": true
+  },
+  {
+    "id": "5",
+    "nickname": "สกาย",
+    "stravaName": "Sky _:",
+    "gender": "M",
+    "distanceKm": 49,
+    "runsCount": 9,
+    "inClub": true
+  },
+  {
+    "id": "6",
+    "nickname": "แม็ก",
+    "stravaName": "Phubodin Sinson",
+    "gender": "M",
+    "distanceKm": 48.5,
+    "runsCount": 10,
+    "inClub": true
+  },
+  {
+    "id": "7",
+    "nickname": "วิช",
+    "stravaName": "Korawich Liengprom",
+    "gender": "M",
+    "distanceKm": 45.8,
+    "runsCount": 12,
+    "inClub": true
+  },
+  {
+    "id": "8",
+    "nickname": "โฟกัส",
+    "stravaName": "Focus Npk",
+    "gender": "M",
+    "distanceKm": 45.4,
+    "runsCount": 8,
+    "inClub": true
+  },
+  {
+    "id": "9",
+    "nickname": "ภูมิ",
+    "stravaName": "Kharuenet Khongs...",
+    "gender": "M",
+    "distanceKm": 36.1,
+    "runsCount": 6,
+    "inClub": true
+  },
+  {
+    "id": "10",
+    "nickname": "เติ้ล",
+    "stravaName": "Tle Athlete",
+    "gender": "M",
+    "distanceKm": 34.1,
+    "runsCount": 9,
+    "inClub": true
+  },
+  {
+    "id": "11",
+    "nickname": "ปังปอนด์",
+    "stravaName": "Pangpond Sakdinan",
+    "gender": "M",
+    "distanceKm": 29.6,
+    "runsCount": 4,
+    "inClub": true
+  },
+  {
+    "id": "12",
+    "nickname": "ใบเตย",
+    "stravaName": "Baitoei Naeothat",
+    "gender": "F",
+    "distanceKm": 28.3,
+    "runsCount": 5,
+    "inClub": true
+  },
+  {
+    "id": "13",
+    "nickname": "พราว",
+    "stravaName": "itspxrd V",
+    "gender": "F",
+    "distanceKm": 27.3,
+    "runsCount": 4,
+    "inClub": true
+  },
+  {
+    "id": "14",
+    "nickname": "กันต์",
+    "stravaName": "Nanthawat ____...",
+    "gender": "M",
+    "distanceKm": 22.2,
+    "runsCount": 3,
+    "inClub": true
+  },
+  {
+    "id": "15",
+    "nickname": "องุ่น",
+    "stravaName": "Samita Termtong",
+    "gender": "F",
+    "distanceKm": 18.8,
+    "runsCount": 5,
+    "inClub": true
+  },
+  {
+    "id": "16",
+    "nickname": "นิ้วหน่อง",
+    "stravaName": "NING NONG",
+    "gender": "M",
+    "distanceKm": 10.7,
+    "runsCount": 4,
+    "inClub": true
+  },
+  {
+    "id": "17",
+    "nickname": "เคน",
+    "stravaName": "Ken Athlete",
+    "gender": "M",
+    "distanceKm": 0,
+    "runsCount": 0,
+    "inClub": true
+  },
+  {
+    "id": "18",
+    "nickname": "ปลื้ม",
+    "stravaName": "",
+    "gender": "M",
+    "distanceKm": 0,
+    "runsCount": 0,
+    "inClub": false
+  },
+  {
+    "id": "19",
+    "nickname": "ธนู",
+    "stravaName": "",
+    "gender": "M",
+    "distanceKm": 0,
+    "runsCount": 0,
+    "inClub": false
+  },
+  {
+    "id": "20",
+    "nickname": "ออม CPE",
+    "stravaName": "",
+    "gender": "F",
+    "distanceKm": 0,
+    "runsCount": 0,
+    "inClub": false
+  },
+  {
+    "id": "21",
+    "nickname": "ออม CHE",
+    "stravaName": "",
+    "gender": "F",
+    "distanceKm": 0,
+    "runsCount": 0,
+    "inClub": false
+  }
+]
