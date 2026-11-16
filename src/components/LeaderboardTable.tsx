@@ -6,24 +6,31 @@ import { EvaluatedAthlete } from "@/types";
 interface LeaderboardTableProps {
   rankedAthletes: EvaluatedAthlete[];
   weekStartDate: string;
+  isLoading: boolean;
 }
 
 export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
   rankedAthletes,
   weekStartDate,
+  isLoading,
 }) => {
   return (
-    <section className="bg-kmutt-card border border-kmutt-border rounded-2xl overflow-hidden shadow-2xl">
+    <section
+      aria-busy={isLoading}
+      className={`bg-kmutt-card border border-kmutt-border rounded-2xl overflow-hidden shadow-2xl ${
+        isLoading ? "invisible" : "visible"
+      }`}
+    >
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-200">
+        <table className="w-full min-w-[700px] table-fixed text-left text-sm text-gray-200">
           <thead>
             <tr className="border-b border-kmutt-border/80 text-gray-400 text-xs font-semibold uppercase tracking-wider bg-black/20">
               <th className="py-3.5 px-4 w-12 text-center">#</th>
-              <th className="py-3.5 px-4">นักกีฬา</th>
-              <th className="py-3.5 px-4 text-right">ระยะ</th>
-              <th className="py-3.5 px-4 text-center">วันซ้อม</th>
-              <th className="py-3.5 px-4 text-center">% โปรแกรม</th>
-              <th className="py-3.5 px-4 text-right">สถานะ</th>
+              <th className="py-3.5 px-4 w-[34%]">นักกีฬา</th>
+              <th className="py-3.5 px-4 w-[13%] text-right">ระยะ</th>
+              <th className="py-3.5 px-4 w-[12%] text-center">วันซ้อม</th>
+              <th className="py-3.5 px-4 w-[15%] text-center">% โปรแกรม</th>
+              <th className="py-3.5 px-4 w-[18%] text-right">สถานะ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-kmutt-border/50 font-medium">
@@ -104,19 +111,19 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                   {/* Status Badge */}
                   <td className="py-3 px-4 text-right">
                     {athlete.isSynced === false ? (
-                      <span className="inline-flex items-center rounded-full border border-gray-600 bg-gray-700/40 px-3 py-1 text-xs font-bold text-gray-300">
+                      <span className="inline-flex whitespace-nowrap items-center rounded-full border border-gray-600 bg-gray-700/40 px-3 py-1 text-xs font-bold text-gray-300">
                         ยังไม่ซิงค์
                       </span>
                     ) : athlete.status === "completed" ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#063319] text-[#4ade80] border border-[#166534]">
+                      <span className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#063319] text-[#4ade80] border border-[#166534]">
                         ครบโปรแกรม
                       </span>
                     ) : athlete.status === "almost" ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#3f2105] text-[#fbbf24] border border-[#854d0e]">
+                      <span className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#3f2105] text-[#fbbf24] border border-[#854d0e]">
                         เกือบครบ
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#1f2937] text-[#9ca3af] border border-[#374151]">
+                      <span className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#1f2937] text-[#9ca3af] border border-[#374151]">
                         ยังไม่ครบ
                       </span>
                     )}

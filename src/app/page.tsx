@@ -100,6 +100,7 @@ export default function Home() {
     getUnsyncedRoster(defaultAthletes as Athlete[])
   );
   const [weekStartDate, setWeekStartDate] = useState(FIRST_WEEK_START);
+  const [isWeekDataLoading, setIsWeekDataLoading] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isStravaConnected, setIsStravaConnected] = useState<boolean | null>(null);
@@ -122,6 +123,7 @@ export default function Home() {
     showStatus = false,
     forceRefresh = false
   ) => {
+    if (!forceRefresh) setIsWeekDataLoading(true);
     try {
       const activitiesResponse = await fetch(
         `/api/strava/activities?weekStart=${encodeURIComponent(weekStartDate)}${
@@ -192,11 +194,12 @@ export default function Home() {
       setStravaStatus(
         showStatus ? "เกิดข้อผิดพลาดขณะโหลดข้อมูลสัปดาห์นี้" : ""
       );
+    } finally {
+      if (!forceRefresh) setIsWeekDataLoading(false);
     }
   }, [weekStartDate]);
 
   useEffect(() => {
-    setAthletes(getUnsyncedRoster(defaultAthletes as Athlete[]));
     void loadWeekData();
   }, [loadWeekData]);
 
@@ -381,6 +384,7 @@ export default function Home() {
       <LeaderboardTable
         rankedAthletes={rankedAthletes}
         weekStartDate={weekStartDate}
+        isLoading={isWeekDataLoading}
       />
 
       <EditModal
