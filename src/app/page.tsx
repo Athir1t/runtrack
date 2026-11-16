@@ -27,6 +27,13 @@ interface WeeklyActivitiesResponse {
   needsSync?: boolean;
 }
 
+interface BulkStravaSyncResponse {
+  error?: string;
+  connectedAthletes: number;
+  synced: number;
+  results: Array<{ success: boolean; athleteName: string }>;
+}
+
 function shiftWeek(weekStart: string, weeks: number): string {
   const date = new Date(`${weekStart}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + weeks * 7);
@@ -295,6 +302,41 @@ export default function Home() {
     }
   };
 
+  const handleSyncAll = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch("/api/strava/sync-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStart: weekStartDate }),
+      });
+      const result: BulkStravaSyncResponse = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "ไม่สามารถซิงค์ข้อมูลทั้งหมดได้");
+      }
+
+      await loadWeekData();
+      if (result.connectedAthletes === 0) {
+        setStravaStatus("ยังไม่มีบัญชี Strava ที่เชื่อมต่อ");
+      } else {
+        const failedAthletes = result.results
+          .filter((item) => !item.success)
+          .map((item) => item.athleteName);
+        setStravaStatus(
+          `ซิงค์สำเร็จ ${result.synced}/${result.connectedAthletes} บัญชี` +
+            (failedAthletes.length ? ` · ไม่สำเร็จ: ${failedAthletes.join(", ")}` : "")
+        );
+      }
+    } catch (error) {
+      console.error("Error syncing all Strava accounts:", error);
+      setStravaStatus(
+        error instanceof Error ? error.message : "ไม่สามารถซิงค์ข้อมูลทั้งหมดได้"
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleSaveData = async (
     newProgram: ProgramConfig,
     newAthletes: Athlete[]
@@ -361,6 +403,7 @@ export default function Home() {
           setWeekStartDate((current) => shiftWeek(current, 1));
         }}
         onSyncStrava={handleSyncStrava}
+        onSyncAll={handleSyncAll}
         isAdmin={isAdmin}
         onAdminAction={() => void handleAdminAction()}
         athleteName={athleteSession?.athleteName || null}

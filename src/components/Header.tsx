@@ -20,6 +20,7 @@ interface HeaderProps {
   onPreviousWeek: () => void;
   onNextWeek: () => void;
   onSyncStrava: () => Promise<void>;
+  onSyncAll: () => Promise<void>;
   isAdmin: boolean;
   onAdminAction: () => void;
   athleteName: string | null;
@@ -38,6 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   onPreviousWeek,
   onNextWeek,
   onSyncStrava,
+  onSyncAll,
   isAdmin,
   onAdminAction,
   athleteName,
@@ -112,6 +114,17 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick Buttons */}
           <div className="flex items-center gap-2">
+            {isAdmin ? (
+              <button
+                onClick={onSyncAll}
+                disabled={isSyncing}
+                title="Sync all connected athletes for this week"
+                className="flex items-center gap-1.5 rounded-xl border border-[#fc4c02]/40 bg-[#fc4c02]/20 px-3 py-2 text-xs font-semibold text-[#fc4c02] transition hover:bg-[#fc4c02]/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                <span>{isSyncing ? "กำลังซิงค์..." : "ซิงค์ทั้งหมด"}</span>
+              </button>
+            ) : null}
             {athleteName ? (
               <>
                 <span className="hidden text-xs text-gray-400 sm:inline">
