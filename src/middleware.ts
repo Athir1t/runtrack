@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getAthleteSessionCookieName,
   getAdminSessionCookieName,
-  verifyAthleteSession,
   verifyAdminSession,
 } from "@/utils/admin-auth";
 
 function requiresAdmin(request: NextRequest): boolean {
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname } = request.nextUrl;
   if (pathname === "/api/athletes/me/activities") return false;
   if (pathname === "/api/strava/sync") {
     return true;
@@ -20,11 +18,16 @@ function requiresAdmin(request: NextRequest): boolean {
   );
 }
 
+function isAthleteDisconnect(request: NextRequest): boolean {
+  return (
+    request.nextUrl.pathname === "/api/strava/disconnect" &&
+    request.method === "POST"
+  );
+}
+
 export async function middleware(request: NextRequest) {
-  const isActivityRefresh =
-    request.nextUrl.pathname === "/api/strava/activities" &&
-    request.nextUrl.searchParams.get("refresh") === "1";
-  if (!requiresAdmin(request) && !isActivityRefresh) {
+  const athleteDisconnect = isAthleteDisconnect(request);
+  if (!requiresAdmin(request) && !athleteDisconnect) {
     return NextResponse.next();
   }
 
@@ -37,17 +40,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   }
 
+  if (athleteDisconnect) return NextResponse.next();
+
   const isAdmin = await verifyAdminSession(
     request.cookies.get(getAdminSessionCookieName())?.value
   );
-  const isAthlete = isActivityRefresh
-    ? Boolean(
-        await verifyAthleteSession(
-          request.cookies.get(getAthleteSessionCookieName())?.value
-        )
-      )
-    : false;
-  if (isAdmin || isAthlete) return NextResponse.next();
+  if (isAdmin) return NextResponse.next();
 
   if (request.nextUrl.pathname === "/api/strava/auth") {
     return NextResponse.redirect(new URL("/?admin=login", request.url));

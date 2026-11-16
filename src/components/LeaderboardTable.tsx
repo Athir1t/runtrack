@@ -2,6 +2,7 @@
 
 import React from "react";
 import { DaySchedule, EvaluatedAthlete } from "@/types";
+import { PoweredByStravaLogo } from "@/components/StravaBrand";
 
 interface LeaderboardTableProps {
   rankedAthletes: EvaluatedAthlete[];
@@ -215,8 +216,11 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
       </div>
 
         {/* Footer Notes */}
-        <div className="px-4 py-2.5 bg-black/30 border-t border-kmutt-border/40 text-[11px] text-gray-500 text-center sm:text-left">
-          ระยะรวมจากกิจกรรมวิ่งใน Strava · วันซ้อมนับวันที่มีกิจกรรมอย่างน้อย 1 กม. และ 5 นาทีในวันฝึกตามโปรแกรม ไม่รวมวันพัก
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-kmutt-border/40 bg-black/30 px-4 py-2.5 text-center sm:flex-row sm:text-left">
+          <p className="text-[11px] text-gray-500">
+            ระยะทางและรอบวิ่งซิงค์ผ่าน Strava API · วันซ้อมนับวันที่มีกิจกรรมอย่างน้อย 1 กม. และ 5 นาทีในวันฝึกตามโปรแกรม ไม่รวมวันพัก
+          </p>
+          <PoweredByStravaLogo className="shrink-0 opacity-80 transition-opacity hover:opacity-100" />
         </div>
     </section>
   );

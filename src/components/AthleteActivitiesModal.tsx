@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { Athlete, StravaActivity } from "@/types";
-import { Activity, ExternalLink, X } from "lucide-react";
+import { Activity, X } from "lucide-react";
+import { StravaIcon } from "@/components/StravaBrand";
 
 interface AthleteActivitiesModalProps {
   athlete: Athlete;
@@ -142,15 +143,22 @@ export const AthleteActivitiesModal: React.FC<AthleteActivitiesModalProps> = ({
                       {formatDuration(activity.movingTimeSeconds)}
                     </p>
                   </div>
-                  <a
-                    href={`https://www.strava.com/activities/${activity.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`เปิด ${activity.name} บน Strava`}
-                    className="shrink-0 rounded-lg p-2 text-kmutt-orange transition hover:bg-kmutt-orange/10"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
+                  {activity.source === "manual" ? (
+                    <span className="shrink-0 rounded-full bg-white/10 px-2 py-1 text-[10px] text-gray-300">
+                      บันทึกเอง
+                    </span>
+                  ) : (
+                    <a
+                      href={`https://www.strava.com/activities/${activity.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`View ${activity.name} on Strava`}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-kmutt-orange transition hover:bg-kmutt-orange/10"
+                    >
+                      <StravaIcon className="h-4 w-4" />
+                      <span>View on Strava</span>
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>

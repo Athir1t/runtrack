@@ -2,9 +2,10 @@
 
 import React, { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Activity, ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
+import { Activity, ArrowLeft, ChevronDown } from "lucide-react";
 import { Athlete, DaySchedule, ProgramConfig, StravaActivity } from "@/types";
 import { getWorkoutType, workoutStyles } from "@/utils/workout";
+import { PoweredByStravaLogo, StravaIcon } from "@/components/StravaBrand";
 
 const FIRST_WEEK_START = "2026-11-02";
 const WEEKDAY_NAMES = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
@@ -344,6 +345,7 @@ export default function AthleteActivitiesPage() {
               <h1 className="mt-1 text-2xl font-bold text-white">
                 {athlete?.nickname || "กิจกรรมนักกีฬา"}
               </h1>
+              <PoweredByStravaLogo className="mt-3 opacity-80" />
               {athlete?.stravaName && (
                 <p className="mt-1 text-sm text-gray-400">
                   Strava: {athlete.stravaName}
@@ -660,10 +662,11 @@ export default function AthleteActivitiesPage() {
                                       href={`https://www.strava.com/activities/${activity.id}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      aria-label={`เปิด ${activity.name} บน Strava ในแท็บใหม่`}
-                                      className="shrink-0 rounded-lg p-2 text-kmutt-orange transition hover:bg-kmutt-orange/10"
+                                      aria-label={`View ${activity.name} on Strava`}
+                                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-kmutt-orange transition hover:bg-kmutt-orange/10"
                                     >
-                                      <ExternalLink className="h-4 w-4" />
+                                      <StravaIcon className="h-4 w-4" />
+                                      <span>View on Strava</span>
                                     </a>
                                   )}
                                 </li>

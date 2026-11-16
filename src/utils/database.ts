@@ -422,6 +422,43 @@ export async function getAthleteStravaToken(
   };
 }
 
+export async function disconnectAthleteFromStrava(
+  athleteId: string
+): Promise<void> {
+  const pool = await ensureDatabase();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM weekly_activities WHERE athlete_id = $1", [
+      athleteId,
+    ]);
+    await client.query(
+      "DELETE FROM weekly_activity_syncs WHERE athlete_id = $1",
+      [athleteId]
+    );
+    await client.query(
+      "DELETE FROM athlete_strava_tokens WHERE athlete_id = $1",
+      [athleteId]
+    );
+    await client.query(
+      "DELETE FROM athlete_strava_connections WHERE athlete_id = $1",
+      [athleteId]
+    );
+    await client.query(
+      `UPDATE athletes
+       SET strava_name = '', distance_km = 0, runs_count = 0, avatar_url = NULL
+       WHERE id = $1`,
+      [athleteId]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function saveAthleteStravaToken(
   athleteId: string,
   token: StravaTokenData

@@ -9,10 +9,15 @@ import {
   RefreshCw,
   Settings,
 } from "lucide-react";
+import {
+  ConnectWithStravaButton,
+  StravaIcon,
+} from "@/components/StravaBrand";
 
 interface HeaderProps {
   weekTitle: string;
   canGoToPreviousWeek: boolean;
+  isAuthenticated: boolean;
   completedCount: number;
   allClubAthletesCount: number;
   syncedCount: number;
@@ -26,6 +31,7 @@ interface HeaderProps {
   onAdminAction: () => void;
   athleteName: string | null;
   onAthleteAction: () => void;
+  onDisconnectStrava: () => Promise<void>;
   isSyncing: boolean;
   stravaStatus: string;
 }
@@ -33,6 +39,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   weekTitle,
   canGoToPreviousWeek,
+  isAuthenticated,
   completedCount,
   allClubAthletesCount,
   syncedCount,
@@ -46,9 +53,21 @@ export const Header: React.FC<HeaderProps> = ({
   onAdminAction,
   athleteName,
   onAthleteAction,
+  onDisconnectStrava,
   isSyncing,
   stravaStatus,
 }) => {
+  const [isDisconnecting, setIsDisconnecting] = React.useState(false);
+
+  const disconnectStrava = async () => {
+    setIsDisconnecting(true);
+    try {
+      await onDisconnectStrava();
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
   return (
     <header className="mb-6">
       {/* Top Banner & Action Controls */}
@@ -89,7 +108,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right side stats & buttons */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-4 bg-kmutt-card border border-kmutt-border px-4 py-2.5 rounded-xl">
+          {isAuthenticated && (
+            <div className="flex items-center gap-4 bg-kmutt-card border border-kmutt-border px-4 py-2.5 rounded-xl">
             <div className="text-right">
               <div className="text-2xl md:text-3xl font-black text-white leading-none">
                 {completedCount}{" "}
@@ -118,7 +138,8 @@ export const Header: React.FC<HeaderProps> = ({
                 เฉลี่ย {(totalTeamKm / (syncedCount || 1)).toFixed(1)} กม./คน
               </div>
             </div>
-          </div>
+            </div>
+          )}
 
           {/* Quick Buttons */}
           <div className="flex items-center gap-2">
@@ -138,6 +159,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden text-xs text-gray-400 sm:inline">
                   {athleteName}
                 </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#fc5200]/40 bg-[#fc5200]/10 px-2 py-1 text-[10px] font-semibold text-[#fc5200]">
+                  <StravaIcon className="h-3 w-3" />
+                  Strava connected
+                </span>
                 <button
                   onClick={onSyncStrava}
                   disabled={isSyncing}
@@ -155,16 +180,21 @@ export const Header: React.FC<HeaderProps> = ({
                   <LogOut className="h-3.5 w-3.5" />
                   <span>ออกจากระบบนักกีฬา</span>
                 </button>
+                <button
+                  onClick={() => void disconnectStrava()}
+                  disabled={isDisconnecting}
+                  title="ยกเลิกการเชื่อมต่อและลบข้อมูล Strava ที่บันทึกไว้"
+                  className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span>
+                    {isDisconnecting
+                      ? "กำลังยกเลิก..."
+                      : "ยกเลิกการเชื่อมต่อ Strava (Disconnect)"}
+                  </span>
+                </button>
               </>
             ) : (
-              <button
-                onClick={onAthleteAction}
-                title="Sign in with your Strava account to sync activities"
-                className="flex items-center gap-1.5 rounded-xl border border-[#fc4c02]/40 bg-[#fc4c02]/20 px-3 py-2 text-xs font-semibold text-[#fc4c02] transition hover:bg-[#fc4c02]/30"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span>นักกีฬาเข้าสู่ระบบ</span>
-              </button>
+              <ConnectWithStravaButton />
             )}
             {isAdmin ? (
               <button

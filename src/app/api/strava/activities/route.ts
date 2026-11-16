@@ -20,6 +20,13 @@ import { syncAthleteWeek } from "@/utils/strava-sync";
 
 export const dynamic = "force-dynamic";
 
+function privateJson(body: Record<string, unknown>, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("Vary", "Cookie");
+  return response;
+}
+
 function isValidDate(value: string): boolean {
   return (
     /^\d{4}-\d{2}-\d{2}$/.test(value) &&
@@ -32,7 +39,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const weekStart = searchParams.get("weekStart");
   if (!weekStart || !isValidDate(weekStart)) {
-    return NextResponse.json({ message: "Invalid week start date." }, { status: 400 });
+    return privateJson({ message: "Invalid week start date." }, { status: 400 });
   }
 
   try {
@@ -45,8 +52,30 @@ export async function GET(request: Request) {
     ]);
     const isAuthenticated = Boolean(athleteSession || isAdmin);
     const forceRefresh = searchParams.get("refresh") === "1";
-    if (forceRefresh && !isAuthenticated) {
-      return NextResponse.json({ message: "Sign in before syncing activities." }, { status: 401 });
+
+    if (!isAuthenticated) {
+      const [program, roster] = await Promise.all([
+        getWeeklyProgram(weekStart).then(
+          (savedProgram) => savedProgram || getDefaultWeek(weekStart)
+        ),
+        getAthletes(),
+      ]);
+
+      return privateJson({
+        authenticated: false,
+        program,
+        athletes: roster
+          .filter((athlete) => athlete.inClub)
+          .map((athlete) => ({
+            id: athlete.id,
+            nickname: athlete.nickname,
+            stravaName: "",
+            gender: athlete.gender,
+            distanceKm: 0,
+            runsCount: 0,
+            inClub: true,
+          })),
+      });
     }
 
     const targetAthleteId =
@@ -108,7 +137,7 @@ export async function GET(request: Request) {
             }))
           : [];
 
-    return NextResponse.json({
+    return privateJson({
       authenticated: isAuthenticated,
       isAdmin,
       athleteId: athleteSession?.athleteId,
@@ -129,6 +158,6 @@ export async function GET(request: Request) {
     const status = /sign in|connect .*strava|authorization expired/i.test(message)
       ? 401
       : 503;
-    return NextResponse.json({ message }, { status });
+    return privateJson({ message }, { status });
   }
 }

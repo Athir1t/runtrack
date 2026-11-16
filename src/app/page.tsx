@@ -2,10 +2,13 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import defaultProgram from "@/data/program.json";
-import defaultAthletes from "@/data/athletes.json";
 import { ProgramConfig, Athlete, StravaActivity } from "@/types";
 import { evaluateAthletes } from "@/utils/calculations";
 import { Header } from "@/components/Header";
+import {
+  ConnectWithStravaButton,
+  PoweredByStravaLogo,
+} from "@/components/StravaBrand";
 import { WeeklyProgram } from "@/components/WeeklyProgram";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { EditModal } from "@/components/EditModal";
@@ -15,7 +18,7 @@ const FIRST_WEEK_START = defaultProgram.weekStartDate;
 
 interface WeeklyActivitiesResponse {
   authenticated: boolean;
-  isAdmin: boolean;
+  isAdmin?: boolean;
   athleteId?: string;
   sessionAthleteName?: string;
   connected: boolean;
@@ -63,18 +66,6 @@ function findConnectedAthlete(athletes: Athlete[], name: string): Athlete | unde
   });
 }
 
-function getUnsyncedRoster(athletes: Athlete[]): Athlete[] {
-  return athletes
-    .filter((athlete) => athlete.inClub)
-    .map((athlete) => ({
-      ...athlete,
-      distanceKm: 0,
-      runsCount: 0,
-      trainingDays: 0,
-      isSynced: false,
-    }));
-}
-
 function getTrainingWeekday(startDate: string, weekStart: string): number | null {
   const activityDate = new Date(startDate);
   if (Number.isNaN(activityDate.getTime())) return null;
@@ -96,10 +87,8 @@ function getTrainingWeekday(startDate: string, weekStart: string): number | null
 
 export default function Home() {
   const [program, setProgram] = useState<ProgramConfig>(defaultProgram as ProgramConfig);
-  const [roster, setRoster] = useState<Athlete[]>(defaultAthletes as Athlete[]);
-  const [athletes, setAthletes] = useState<Athlete[]>(
-    getUnsyncedRoster(defaultAthletes as Athlete[])
-  );
+  const [roster, setRoster] = useState<Athlete[]>([]);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [weekStartDate, setWeekStartDate] = useState(FIRST_WEEK_START);
   const [isWeekDataLoading, setIsWeekDataLoading] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -120,6 +109,7 @@ export default function Home() {
     totalAthletesCount: syncedCount,
   } = evaluateAthletes(athletes, program);
   const allClubAthletesCount = roster.filter((athlete) => athlete.inClub).length;
+  const isAuthenticated = Boolean(athleteSession || isAdmin);
 
   const loadWeekData = useCallback(async (
     showStatus = false,
@@ -141,7 +131,7 @@ export default function Home() {
 
       const weekProgram = activityData.program;
       setProgram(weekProgram);
-      setIsAdmin(activityData.isAdmin);
+      setIsAdmin(activityData.isAdmin === true);
       setAthleteSession(
         activityData.athleteId && activityData.sessionAthleteName
           ? {
@@ -151,7 +141,13 @@ export default function Home() {
           : null
       );
       setRoster(activityData.athletes);
-      setIsStravaConnected(activityData.connected);
+      setIsStravaConnected(activityData.connected === true);
+      if (!activityData.authenticated) {
+        setAthletes([]);
+        setStravaStatus("");
+        return;
+      }
+
       const summaries = new Map(
         (activityData.athleteSummaries || []).map((summary) => [
           summary.athleteId,
@@ -192,8 +188,11 @@ export default function Home() {
       );
     } catch (error) {
       console.error("Error loading weekly data:", error);
+      setIsAdmin(false);
+      setAthleteSession(null);
       setIsStravaConnected(false);
-      setAthletes(getUnsyncedRoster(roster));
+      setRoster([]);
+      setAthletes([]);
       setStravaStatus(
         showStatus ? "เกิดข้อผิดพลาดขณะโหลดข้อมูลสัปดาห์นี้" : ""
       );
@@ -236,6 +235,8 @@ export default function Home() {
     setAthleteSession(null);
     setIsStravaConnected(false);
     setIsSettingsOpen(false);
+    setAthletes([]);
+    void loadWeekData();
     setStravaStatus("ออกจากระบบผู้ดูแลแล้ว");
   };
 
@@ -253,8 +254,49 @@ export default function Home() {
     setIsAdmin(false);
     setIsStravaConnected(false);
     setIsSettingsOpen(false);
+    setAthletes([]);
     void loadWeekData();
     setStravaStatus("ออกจากระบบแล้ว");
+  };
+
+  const handleDisconnectStrava = async () => {
+    if (
+      !window.confirm(
+        "ยกเลิกการเชื่อมต่อ Strava และลบข้อมูลกิจกรรม Strava ที่บันทึกไว้หรือไม่?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/strava/disconnect", {
+        method: "POST",
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        warning?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error || "ยกเลิกการเชื่อมต่อ Strava ไม่สำเร็จ");
+      }
+
+      setAthleteSession(null);
+      setIsStravaConnected(false);
+      setAthletes([]);
+      setIsSettingsOpen(false);
+      void loadWeekData();
+      setStravaStatus(
+        result.warning
+          ? `ยกเลิกการเชื่อมต่อแล้ว แต่ ${result.warning}`
+          : "ยกเลิกการเชื่อมต่อ Strava และลบข้อมูลที่บันทึกไว้แล้ว"
+      );
+    } catch (error) {
+      setStravaStatus(
+        error instanceof Error
+          ? error.message
+          : "ยกเลิกการเชื่อมต่อ Strava ไม่สำเร็จ"
+      );
+    }
   };
 
   const handleSyncStrava = async () => {
@@ -362,6 +404,7 @@ export default function Home() {
       <Header
         weekTitle={program.weekTitle}
         canGoToPreviousWeek={weekStartDate !== FIRST_WEEK_START}
+        isAuthenticated={isAuthenticated}
         completedCount={completedCount}
         allClubAthletesCount={allClubAthletesCount}
         syncedCount={syncedCount}
@@ -381,18 +424,56 @@ export default function Home() {
         onAdminAction={() => void handleAdminAction()}
         athleteName={athleteSession?.athleteName || null}
         onAthleteAction={() => void handleAthleteAction()}
+        onDisconnectStrava={handleDisconnectStrava}
         isSyncing={isSyncing}
         stravaStatus={stravaStatus}
       />
 
       <WeeklyProgram program={program} />
 
-      <LeaderboardTable
-        rankedAthletes={rankedAthletes}
-        weekStartDate={weekStartDate}
-        schedule={program.schedule}
-        isLoading={isWeekDataLoading}
-      />
+      {isWeekDataLoading ? (
+        <section
+          aria-busy="true"
+          className="rounded-2xl border border-kmutt-border bg-kmutt-card px-5 py-10 text-center text-sm text-gray-400"
+        >
+          กำลังตรวจสอบการเข้าสู่ระบบ...
+        </section>
+      ) : isAuthenticated ? (
+        <LeaderboardTable
+          rankedAthletes={rankedAthletes}
+          weekStartDate={weekStartDate}
+          schedule={program.schedule}
+          isLoading={false}
+        />
+      ) : (
+        <section className="rounded-2xl border border-kmutt-border bg-kmutt-card p-6 shadow-2xl sm:p-8">
+          <div className="mx-auto max-w-xl text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-kmutt-orange/30 bg-kmutt-orange/10 text-2xl font-black text-kmutt-orange">
+              K
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-white sm:text-2xl">
+              ระบบบันทึกการฝึกซ้อม KMUTT Athletics
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              เพื่อความปลอดภัยและความเป็นส่วนตัวตามนโยบาย Strava API
+              กรุณาเชื่อมต่อบัญชี Strava ของคุณเพื่อดูตารางสรุปการซ้อมของทีม
+            </p>
+            <div className="mt-6 flex justify-center">
+              <ConnectWithStravaButton />
+            </div>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setIsLoginOpen(true)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kmutt-orange"
+              >
+                เข้าสู่ระบบสำหรับโค้ช / ผู้ดูแล (Admin Login)
+              </button>
+            </div>
+            <PoweredByStravaLogo className="mt-6" />
+          </div>
+        </section>
+      )}
 
       <EditModal
         isOpen={isSettingsOpen}
@@ -409,6 +490,7 @@ export default function Home() {
             setIsAdmin(true);
             setIsLoginOpen(false);
             setStravaStatus("เข้าสู่ระบบผู้ดูแลแล้ว");
+            void loadWeekData();
           }}
         />
       )}
