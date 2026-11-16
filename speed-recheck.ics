@@ -1,0 +1,30 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//KMUTT Run Track//Website Speed Recheck//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:runtrack-speed-recheck-20261214@runtrack-orpin.vercel.app
+DTSTAMP:20261116T161042Z
+DTSTART:20261214T020000Z
+DTEND:20261214T023000Z
+SUMMARY:Recheck Run Track Core Web Vitals in PageSpeed Insights
+DESCRIPTION:Re-run Google PageSpeed Insights on mobile and desktop
+  for these pages: https://runtrack-orpin.vercel.app/\n
+ https://runtrack-orpin.vercel.app/athletes/1?weekStart=2026-11-09\n
+  Run three valid PSI lab tests per page and device. Report medians.
+  Exclude failed runs with reasons. Compare field data separately.
+  Homepage field baseline on 2026-11-16: PSI showed No Data. No URL-level
+  or origin-level field LCP\, INP\, or CLS values were available.
+  Homepage lab baseline (3 runs each): Mobile median Performance 100\,
+  FCP 0.8 s\, LCP 0.8 s\, TBT 0 ms\, CLS 0\, Speed Index 0.8 s.
+  Desktop median Performance 94\, FCP 0.2 s\, LCP 0.2 s\, TBT 10 ms\,
+  CLS 0.149\, Speed Index 0.3 s.
+  Desktop CLS culprit: leaderboard row moving during data-driven sorting.
+  Fix deployed in commit 94df2f8 stabilizes the leaderboard during loading.
+  Record whether field data is URL-level or origin-level. Never treat lab
+  results as field data or claim Core Web Vitals improved without fresh
+  field data. Include before/after\, run counts\, failed tests\, conditions
+  and remaining issues.
+
+END:VEVENT
+END:VCALENDAR
