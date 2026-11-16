@@ -43,6 +43,7 @@ export interface WeeklyAthleteActivitySummary {
   distanceKm: number;
   runsCount: number;
   activityDates: string[];
+  validActivityDates: string[];
 }
 
 const globalForPostgres = globalThis as typeof globalThis & {
@@ -292,7 +293,40 @@ export async function getWeeklyProgram(
     "SELECT program FROM weekly_programs WHERE week_start = $1::date",
     [weekStart]
   );
-  return result.rows[0]?.program || null;
+  const savedProgram = result.rows[0]?.program;
+  if (!savedProgram) return null;
+
+  const defaultPrograms = {
+    [(defaultProgram as ProgramConfig).weekStartDate]: defaultProgram as ProgramConfig,
+    ...(defaultWeeklyPrograms as Record<string, ProgramConfig>),
+  };
+  const defaultWeek =
+    defaultPrograms[weekStart] || (defaultProgram as ProgramConfig);
+  if (
+    !defaultWeek ||
+    savedProgram.schedule.length !== defaultWeek.schedule.length ||
+    savedProgram.schedule.some(
+      (day, index) =>
+        day.day !== defaultWeek.schedule[index].day ||
+        day.title !== defaultWeek.schedule[index].title
+    ) ||
+    savedProgram.schedule.some(
+      (day) => day.targetMaleKm !== undefined || day.targetFemaleKm !== undefined
+    )
+  ) {
+    return savedProgram;
+  }
+
+  return {
+    ...savedProgram,
+    targetMaleKm: defaultWeek.targetMaleKm,
+    targetFemaleKm: defaultWeek.targetFemaleKm,
+    schedule: savedProgram.schedule.map((day, index) => ({
+      ...day,
+      targetMaleKm: defaultWeek.schedule[index].targetMaleKm,
+      targetFemaleKm: defaultWeek.schedule[index].targetFemaleKm,
+    })),
+  };
 }
 
 export async function saveWeeklyProgram(
@@ -495,12 +529,15 @@ export async function getWeeklyAthleteActivitySummaries(
     `SELECT athlete_id AS "athleteId",
             SUM(distance_km)::float8 AS "distanceKm",
             COUNT(*)::int AS "runsCount",
-            ARRAY_AGG(DISTINCT LEFT(start_date_local, 10)) AS "activityDates"
+            ARRAY_AGG(DISTINCT LEFT(start_date_local, 10)) AS "activityDates",
+            ARRAY_AGG(DISTINCT LEFT(start_date_local, 10))
+              FILTER (WHERE distance_km >= 1 AND moving_time_seconds >= 300)
+              AS "validActivityDates"
      FROM (
-       SELECT athlete_id, distance_km, start_date_local
+       SELECT athlete_id, distance_km, moving_time_seconds, start_date_local
        FROM weekly_activities WHERE week_start = $1::date
        UNION ALL
-       SELECT athlete_id, distance_km, start_date_local
+       SELECT athlete_id, distance_km, moving_time_seconds, start_date_local
        FROM manual_activities WHERE week_start = $1::date
      ) activities
      GROUP BY athlete_id`,
@@ -511,6 +548,7 @@ export async function getWeeklyAthleteActivitySummaries(
     distanceKm: Number(row.distanceKm),
     runsCount: Number(row.runsCount),
     activityDates: row.activityDates || [],
+    validActivityDates: row.validActivityDates || [],
   }));
 }
 

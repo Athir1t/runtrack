@@ -9,6 +9,26 @@ interface WeeklyProgramProps {
 }
 
 export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
+  const hasDistanceEstimates = program.schedule.every(
+    (day) =>
+      day.targetMaleKm !== undefined && day.targetFemaleKm !== undefined
+  );
+  const maleDailyTargets = program.schedule.map((day) => day.targetMaleKm ?? 0);
+  const femaleDailyTargets = program.schedule.map(
+    (day) => day.targetFemaleKm ?? 0
+  );
+  const maleTotalKm = maleDailyTargets.reduce((total, distance) => total + distance, 0);
+  const femaleTotalKm = femaleDailyTargets.reduce(
+    (total, distance) => total + distance,
+    0
+  );
+  const formatKm = (distance: number) =>
+    Number.isInteger(distance) ? String(distance) : distance.toFixed(1);
+  const fullMinRuns =
+    program.criteria.fullMinRuns ?? program.schedule.filter((day) => !day.isRest).length;
+  const fullMinPercent = program.criteria.fullMinPercent ?? 90;
+  const almostMinPercent = program.criteria.almostMinPercent ?? 65;
+
   return (
     <section className="mb-6">
       {/* 7 Days Grid */}
@@ -42,11 +62,29 @@ export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
                     {item.subtitle}
                   </div>
                 )}
+                {item.targetMaleKm !== undefined &&
+                  item.targetFemaleKm !== undefined && (
+                    <div className="mt-1.5 inline-flex rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-semibold text-gray-300">
+                      ~{formatKm(item.targetMaleKm)} กม. (ญ ~
+                      {formatKm(item.targetFemaleKm)} กม.)
+                    </div>
+                  )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {hasDistanceEstimates && (
+        <div className="mt-3 rounded-xl border border-kmutt-orange/30 bg-kmutt-orange/10 px-3.5 py-2.5 text-xs text-gray-200">
+          <span className="font-semibold text-kmutt-orange">
+            รวมเป้าหมายทั้งสัปดาห์:{" "}
+          </span>
+          ชาย {maleDailyTargets.map(formatKm).join("+")} = {maleTotalKm.toFixed(1)} กม.
+          <span className="mx-1.5 text-gray-500">|</span>
+          หญิง {femaleDailyTargets.map(formatKm).join("+")} = {femaleTotalKm.toFixed(1)} กม.
+        </div>
+      )}
 
       <div
         aria-label="Workout color legend"
@@ -68,15 +106,18 @@ export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
           • ครบโปรแกรม:
         </span>
         <span>
-          ซ้อมครบ {program.schedule.filter((day) => !day.isRest).length} วันตามตาราง
+          ซ้อมอย่างน้อย {fullMinRuns} วัน และได้อย่างน้อย {fullMinPercent}% ของระยะเป้าหมาย
         </span>
         <span className="text-gray-600 hidden sm:inline">|</span>
         <span className="text-amber-400 font-semibold">
           • เกือบครบ:
         </span>
         <span>
-          {program.criteria.almostMinRuns} ครั้งขึ้นไป และได้{" "}
-          {program.criteria.almostMinPercent}%
+          {program.criteria.almostMinRuns} วันขึ้นไป และได้{" "}
+          {almostMinPercent}%
+        </span>
+        <span className="text-gray-400">
+          หรือได้ระยะทางครบ 100% และขาดวันซ้อมไม่เกิน 1 วัน
         </span>
         <span className="text-gray-600 hidden sm:inline">|</span>
         <span className="text-gray-300">

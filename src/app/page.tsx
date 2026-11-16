@@ -28,6 +28,7 @@ interface WeeklyActivitiesResponse {
     distanceKm: number;
     runsCount: number;
     activityDates: string[];
+    validActivityDates: string[];
   }>;
   message?: string;
   needsSync?: boolean;
@@ -116,8 +117,9 @@ export default function Home() {
     rankedAthletes,
     totalTeamKm,
     completedCount,
-    totalAthletesCount,
+    totalAthletesCount: syncedCount,
   } = evaluateAthletes(athletes, program);
+  const allClubAthletesCount = roster.filter((athlete) => athlete.inClub).length;
 
   const loadWeekData = useCallback(async (
     showStatus = false,
@@ -161,8 +163,8 @@ export default function Home() {
           .filter((item) => item.inClub)
           .map((item) => {
             const summary = summaries.get(item.id);
-            const trainingDays = new Set(
-              (summary?.activityDates || [])
+            const trainingDayIndexes = Array.from(new Set(
+              (summary?.validActivityDates || [])
                 .map((date) => getTrainingWeekday(`${date}T12:00:00`, weekStartDate))
                 .filter(
                   (day): day is number =>
@@ -170,12 +172,13 @@ export default function Home() {
                     weekProgram.schedule[day] !== undefined &&
                     !weekProgram.schedule[day].isRest
                 )
-            ).size;
+            ));
             return {
               ...item,
               distanceKm: Number((summary?.distanceKm || 0).toFixed(1)),
               runsCount: summary?.runsCount || 0,
-              trainingDays,
+              trainingDays: trainingDayIndexes.length,
+              trainingDayIndexes,
               isSynced: Boolean(summary),
             };
           })
@@ -339,6 +342,7 @@ export default function Home() {
                 distanceKm: current.distanceKm,
                 runsCount: current.runsCount,
                 trainingDays: current.trainingDays,
+                trainingDayIndexes: current.trainingDayIndexes,
                 isSynced: true,
               }
             : {
@@ -346,6 +350,7 @@ export default function Home() {
                 distanceKm: 0,
                 runsCount: 0,
                 trainingDays: 0,
+                trainingDayIndexes: [],
                 isSynced: false,
               };
         })
@@ -358,7 +363,8 @@ export default function Home() {
         weekTitle={program.weekTitle}
         canGoToPreviousWeek={weekStartDate !== FIRST_WEEK_START}
         completedCount={completedCount}
-        totalAthletesCount={totalAthletesCount}
+        allClubAthletesCount={allClubAthletesCount}
+        syncedCount={syncedCount}
         totalTeamKm={totalTeamKm}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onPreviousWeek={() => {
@@ -384,6 +390,7 @@ export default function Home() {
       <LeaderboardTable
         rankedAthletes={rankedAthletes}
         weekStartDate={weekStartDate}
+        schedule={program.schedule}
         isLoading={isWeekDataLoading}
       />
 

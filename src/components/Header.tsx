@@ -14,7 +14,8 @@ interface HeaderProps {
   weekTitle: string;
   canGoToPreviousWeek: boolean;
   completedCount: number;
-  totalAthletesCount: number;
+  allClubAthletesCount: number;
+  syncedCount: number;
   totalTeamKm: number;
   onOpenSettings: () => void;
   onPreviousWeek: () => void;
@@ -33,7 +34,8 @@ export const Header: React.FC<HeaderProps> = ({
   weekTitle,
   canGoToPreviousWeek,
   completedCount,
-  totalAthletesCount,
+  allClubAthletesCount,
+  syncedCount,
   totalTeamKm,
   onOpenSettings,
   onPreviousWeek,
@@ -92,11 +94,14 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="text-2xl md:text-3xl font-black text-white leading-none">
                 {completedCount}{" "}
                 <span className="text-base text-gray-500 font-normal">
-                  / {totalAthletesCount}
+                  / {allClubAthletesCount} คน
                 </span>
               </div>
               <div className="text-[11px] text-gray-400 font-medium mt-0.5">
                 คนครบโปรแกรม
+              </div>
+              <div className="text-[10px] text-gray-500">
+                (ซิงค์ข้อมูลแล้ว {syncedCount}/{allClubAthletesCount} คน)
               </div>
             </div>
 
@@ -108,6 +113,9 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <div className="text-[11px] text-gray-400 font-medium mt-0.5">
                 กม. สัปดาห์นี้
+              </div>
+              <div className="text-[10px] text-gray-500">
+                เฉลี่ย {(totalTeamKm / (syncedCount || 1)).toFixed(1)} กม./คน
               </div>
             </div>
           </div>

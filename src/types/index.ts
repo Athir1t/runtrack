@@ -6,6 +6,7 @@ export interface Athlete {
   distanceKm: number;
   runsCount: number;
   trainingDays?: number;
+  trainingDayIndexes?: number[];
   isSynced?: boolean;
   inClub: boolean;
   avatarUrl?: string;
@@ -46,6 +47,8 @@ export interface DaySchedule {
   detail?: string;
   isRest?: boolean;
   isRace?: boolean;
+  targetMaleKm?: number;
+  targetFemaleKm?: number;
 }
 
 export interface ProgramConfig {
@@ -54,10 +57,10 @@ export interface ProgramConfig {
   targetMaleKm: number;
   targetFemaleKm: number;
   criteria: {
-    fullMinRuns: number;
-    fullMinPercent: number;
+    fullMinRuns?: number;
+    fullMinPercent?: number;
     almostMinRuns: number;
-    almostMinPercent: number;
+    almostMinPercent?: number;
   };
   schedule: DaySchedule[];
 }
@@ -70,4 +73,5 @@ export interface EvaluatedAthlete extends Athlete {
   programTrainingDays: number;
   percent: number;
   status: TrainingStatus;
+  statusReason: string;
 }

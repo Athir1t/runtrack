@@ -1,17 +1,19 @@
 "use client";
 
 import React from "react";
-import { EvaluatedAthlete } from "@/types";
+import { DaySchedule, EvaluatedAthlete } from "@/types";
 
 interface LeaderboardTableProps {
   rankedAthletes: EvaluatedAthlete[];
   weekStartDate: string;
+  schedule: DaySchedule[];
   isLoading: boolean;
 }
 
 export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
   rankedAthletes,
   weekStartDate,
+  schedule,
   isLoading,
 }) => {
   return (
@@ -82,29 +84,87 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
 
                   {/* Distance */}
                   <td className="py-3 px-4 text-right">
-                    <span className="text-base font-extrabold text-white">
-                      {athlete.isSynced === false
-                        ? "—"
-                        : athlete.distanceKm.toFixed(1)}
-                    </span>{" "}
-                    <span className="text-xs text-gray-400 font-normal">กม.</span>
+                    {athlete.isSynced === false ? (
+                      <span className="text-base font-extrabold text-gray-500">—</span>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="text-base font-extrabold text-white">
+                            {athlete.distanceKm.toFixed(1)}
+                          </span>{" "}
+                          <span className="text-xs text-gray-400 font-normal">กม.</span>
+                        </div>
+                        <div className="mt-0.5 text-[10px] font-normal text-gray-400">
+                          {athlete.distanceKm < athlete.targetKm
+                            ? `เป้า: ${athlete.targetKm.toFixed(1)} กม. (ขาด ${(athlete.targetKm - athlete.distanceKm).toFixed(1)} กม.)`
+                            : athlete.distanceKm > athlete.targetKm
+                              ? `เป้า: ${athlete.targetKm.toFixed(1)} กม. (+${(athlete.distanceKm - athlete.targetKm).toFixed(1)} กม.)`
+                              : `ถึงเป้า ${athlete.targetKm.toFixed(1)} กม.`}
+                        </div>
+                      </>
+                    )}
                   </td>
 
                   {/* Runs count */}
-                  <td className="py-3 px-4 text-center text-base font-bold text-white">
-                    {athlete.isSynced === false
-                      ? "—"
-                      : `${athlete.trainingDays ?? athlete.runsCount}/${athlete.programTrainingDays}`}
+                  <td className="py-3 px-2 text-center">
+                    {athlete.isSynced === false ? (
+                      <span className="text-base font-bold text-gray-500">—</span>
+                    ) : (
+                      <>
+                        <div className="text-base font-bold text-white">
+                          {athlete.trainingDays ?? athlete.runsCount}/{athlete.programTrainingDays}
+                        </div>
+                        <div
+                          aria-label="วันซ้อมตั้งแต่วันจันทร์ถึงวันอาทิตย์"
+                          className="mt-1 flex justify-center gap-0.5"
+                        >
+                          {schedule.map((day, dayIndex) => {
+                            const isRestDay = Boolean(day.isRest);
+                            const isCompleted =
+                              !isRestDay &&
+                              athlete.trainingDayIndexes?.includes(dayIndex) === true;
+                            const label = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"][dayIndex] ?? day.day;
+                            const stateLabel = isRestDay
+                              ? "วันพัก"
+                              : isCompleted
+                                ? "ซ้อมแล้ว"
+                                : "ขาดซ้อม";
+
+                            return (
+                              <span
+                                key={`${day.day}-${dayIndex}`}
+                                aria-label={`${label}: ${stateLabel}`}
+                                title={`${label}: ${stateLabel}`}
+                                className={`flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[9px] font-semibold leading-none ${
+                                  isRestDay
+                                    ? "border border-gray-600 text-gray-500"
+                                    : isCompleted
+                                      ? "bg-green-800 text-green-200"
+                                      : "bg-red-950 text-red-300"
+                                }`}
+                              >
+                                {isRestDay ? label : isCompleted ? label : "–"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
                   </td>
 
                   {/* % of Program */}
-                  <td className="py-3 px-4 text-center font-bold text-sm">
+                  <td className="py-3 px-2 text-center font-bold text-sm">
                     {athlete.isSynced === false ? (
                       <span className="text-gray-500">—</span>
-                    ) : athlete.status === "completed" ? (
-                      <span className="text-green-400">{athlete.percent}%</span>
                     ) : (
-                      <span className="text-gray-300">{athlete.percent}%</span>
+                      <>
+                        <div className={athlete.status === "completed" ? "text-green-400" : "text-gray-300"}>
+                          {athlete.percent}%
+                        </div>
+                        <div className="mt-0.5 whitespace-nowrap text-[10px] font-normal text-gray-400">
+                          ({athlete.distanceKm.toFixed(1)} / {athlete.targetKm.toFixed(1)} กม.)
+                        </div>
+                      </>
                     )}
                   </td>
 
@@ -115,17 +175,37 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                         ยังไม่ซิงค์
                       </span>
                     ) : athlete.status === "completed" ? (
-                      <span className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#063319] text-[#4ade80] border border-[#166534]">
+                      <span
+                        title={athlete.statusReason}
+                        aria-label={`ครบโปรแกรม: ${athlete.statusReason}`}
+                        className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#063319] text-[#4ade80] border border-[#166534]"
+                      >
                         ครบโปรแกรม
                       </span>
                     ) : athlete.status === "almost" ? (
-                      <span className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#3f2105] text-[#fbbf24] border border-[#854d0e]">
+                      <span
+                        title={athlete.statusReason}
+                        aria-label={`เกือบครบ: ${athlete.statusReason}`}
+                        className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#3f2105] text-[#fbbf24] border border-[#854d0e]"
+                      >
                         เกือบครบ
                       </span>
                     ) : (
-                      <span className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#1f2937] text-[#9ca3af] border border-[#374151]">
+                      <span
+                        title={athlete.statusReason}
+                        aria-label={`ยังไม่ครบ: ${athlete.statusReason}`}
+                        className="inline-flex whitespace-nowrap items-center px-3 py-1 rounded-full text-xs font-bold bg-[#1f2937] text-[#9ca3af] border border-[#374151]"
+                      >
                         ยังไม่ครบ
                       </span>
+                    )}
+                    {athlete.isSynced !== false && (
+                      <div
+                        title={athlete.statusReason}
+                        className="mt-1 line-clamp-2 text-left text-[10px] font-normal leading-tight text-gray-400"
+                      >
+                        {athlete.statusReason}
+                      </div>
                     )}
                   </td>
               </tr>
@@ -136,7 +216,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
 
         {/* Footer Notes */}
         <div className="px-4 py-2.5 bg-black/30 border-t border-kmutt-border/40 text-[11px] text-gray-500 text-center sm:text-left">
-          ระยะรวมจากกิจกรรมวิ่งใน Strava · วันซ้อมนับวันที่มีกิจกรรมในวันฝึกตามโปรแกรม โดยไม่นับวันพัก
+          ระยะรวมจากกิจกรรมวิ่งใน Strava · วันซ้อมนับวันที่มีกิจกรรมอย่างน้อย 1 กม. และ 5 นาทีในวันฝึกตามโปรแกรม ไม่รวมวันพัก
         </div>
     </section>
   );
