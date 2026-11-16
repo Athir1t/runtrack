@@ -23,7 +23,7 @@ export const workoutStyles: Record<
   { card: string; badge: string; accent: string }
 > = {
   rest: {
-    card: "bg-[#14181c] border-kmutt-border/60",
+    card: "bg-kmutt-dark border-kmutt-border/60",
     badge: "bg-kmutt-border text-gray-400",
     accent: "text-gray-400",
   },
@@ -33,23 +33,23 @@ export const workoutStyles: Record<
     accent: "text-kmutt-orange",
   },
   easy: {
-    card: "bg-blue-500/10 border-blue-500/40",
-    badge: "bg-blue-500/20 text-blue-300",
-    accent: "text-blue-300",
+    card: "bg-kmutt-card border-kmutt-border",
+    badge: "bg-kmutt-orange/10 text-kmutt-orange",
+    accent: "text-kmutt-orange",
   },
   interval: {
-    card: "bg-red-500/10 border-red-500/40",
-    badge: "bg-red-500/20 text-red-300",
-    accent: "text-red-300",
+    card: "bg-kmutt-card border-kmutt-border",
+    badge: "bg-kmutt-orange/10 text-kmutt-orange",
+    accent: "text-kmutt-orange",
   },
   tempo: {
-    card: "bg-yellow-500/10 border-yellow-500/40",
-    badge: "bg-yellow-500/20 text-yellow-300",
-    accent: "text-yellow-300",
+    card: "bg-kmutt-card border-kmutt-border",
+    badge: "bg-kmutt-orange/10 text-kmutt-orange",
+    accent: "text-kmutt-orange",
   },
   long: {
-    card: "bg-green-500/10 border-green-500/40",
-    badge: "bg-green-500/20 text-green-300",
-    accent: "text-green-300",
+    card: "bg-kmutt-card border-kmutt-border",
+    badge: "bg-kmutt-orange/10 text-kmutt-orange",
+    accent: "text-kmutt-orange",
   },
 };

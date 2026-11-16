@@ -10,12 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         kmutt: {
-          orange: "#ff5e14",
-          orangeLight: "#ff7a38",
-          dark: "#0e1317",
-          card: "#161c22",
-          cardHover: "#1d252d",
-          border: "#252e37",
+          orange: "rgb(var(--kmutt-orange) / <alpha-value>)",
+          orangeLight: "rgb(var(--kmutt-orange-light) / <alpha-value>)",
+          dark: "rgb(var(--kmutt-dark) / <alpha-value>)",
+          card: "rgb(var(--kmutt-card) / <alpha-value>)",
+          cardHover: "rgb(var(--kmutt-card-hover) / <alpha-value>)",
+          border: "rgb(var(--kmutt-border) / <alpha-value>)",
         },
       },
     },

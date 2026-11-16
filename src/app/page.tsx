@@ -401,7 +401,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0e1317] text-gray-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
+    <main className="min-h-screen bg-kmutt-dark text-gray-100 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto">
       <Header
         weekTitle={program.weekTitle}
         canGoToPreviousWeek={weekStartDate !== FIRST_WEEK_START}

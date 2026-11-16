@@ -6,6 +6,7 @@ import { Activity, ArrowLeft, ChevronDown } from "lucide-react";
 import { Athlete, DaySchedule, ProgramConfig, StravaActivity } from "@/types";
 import { getWorkoutType, workoutStyles } from "@/utils/workout";
 import { PoweredByStravaLogo, StravaIcon } from "@/components/StravaBrand";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const FIRST_WEEK_START = "2026-11-02";
 const WEEKDAY_NAMES = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
@@ -287,7 +288,7 @@ export default function AthleteActivitiesPage() {
     }) : "—";
 
   return (
-    <main className="min-h-screen bg-[#0e1317] px-4 py-6 text-gray-100 sm:px-6 md:py-10">
+    <main className="min-h-screen bg-kmutt-dark px-4 py-6 text-gray-100 sm:px-6 md:py-10">
       <div className="mx-auto max-w-3xl">
         <a
           href={`/?weekStart=${encodeURIComponent(weekStart)}`}
@@ -315,6 +316,9 @@ export default function AthleteActivitiesPage() {
                   Strava: {athlete.stravaName}
                 </p>
               )}
+            </div>
+            <div className="ml-auto self-start">
+              <ThemeToggle />
             </div>
           </header>
 

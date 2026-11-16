@@ -13,6 +13,7 @@ import {
   ConnectWithStravaButton,
   StravaIcon,
 } from "@/components/StravaBrand";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface HeaderProps {
   weekTitle: string;
@@ -77,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-kmutt-border">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-kmutt-orange animate-pulse"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-kmutt-orange"></span>
             <span className="text-kmutt-orange font-bold text-sm tracking-widest uppercase">
               KMUTT ATHLETICS × TUMPANG GAMES
             </span>
@@ -148,6 +149,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick Buttons */}
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             {isAdmin ? (
               <button
                 onClick={onSyncAll}
@@ -155,7 +157,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Sync all connected athletes for this week"
                 className="flex items-center gap-1.5 rounded-xl border border-[#fc4c02]/40 bg-[#fc4c02]/20 px-3 py-2 text-xs font-semibold text-[#fc4c02] transition hover:bg-[#fc4c02]/30 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                <RefreshCw className="h-3.5 w-3.5" />
                 <span>{isSyncing ? "กำลังซิงค์..." : "ซิงค์ทั้งหมด"}</span>
               </button>
             ) : null}
@@ -174,7 +176,7 @@ export const Header: React.FC<HeaderProps> = ({
                   title="Sync your own Strava activities"
                   className="flex items-center gap-1.5 rounded-xl border border-[#fc4c02]/40 bg-[#fc4c02]/20 px-3 py-2 text-xs font-semibold text-[#fc4c02] transition hover:bg-[#fc4c02]/30 disabled:opacity-60"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                  <RefreshCw className="h-3.5 w-3.5" />
                   <span>{isSyncing ? "กำลังซิงค์..." : "ซิงค์ Strava"}</span>
                 </button>
                 <button
