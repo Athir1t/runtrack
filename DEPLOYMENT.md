@@ -43,6 +43,7 @@ redeploy:
 | `ADMIN_USERNAME` | Your chosen admin login name |
 | `ADMIN_PASSWORD` | A unique password (at least 11 characters) |
 | `ADMIN_SESSION_SECRET` | Random secret of at least 32 characters |
+| `CRON_SECRET` | Random secret used to authorize the scheduled Strava sync |
 
 Generate a session secret locally with:
 
@@ -52,6 +53,25 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 Do not paste secrets into chat or commit them. Vercel provides `NODE_ENV` for
 production; do not set `NEXT_PUBLIC_` on any server-side secret.
+
+## Daily Strava sync
+
+The Vercel cron job in `vercel.json` refreshes the current Thailand training
+week once daily at **02:00 Thailand time**. It syncs every connected athlete
+using that athlete's saved token; athletes only need to authorize Strava once
+and do not need to press Sync every day. If authorization is revoked or expires,
+that athlete must reconnect. Add `CRON_SECRET` to Vercel's Production
+environment variables before deploying this version. Vercel invokes scheduled
+jobs for Production deployments, not Preview deployments. Generate the secret
+locally with:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+The scheduled job refreshes only the current training week. Manual activities
+remain in the app and are not changed by Strava syncs. Scheduled jobs run on
+Vercel after deployment; local development does not run the Vercel schedule.
 
 ## Strava callback
 

@@ -355,6 +355,21 @@ export async function getAthleteStravaConnection(
   return { ...result.rows[0], stravaAthleteId: String(result.rows[0].stravaAthleteId) };
 }
 
+export async function getAthleteStravaConnections(): Promise<AthleteStravaConnection[]> {
+  const pool = await ensureDatabase();
+  const result = await pool.query(
+    `SELECT athlete_id AS "athleteId",
+            strava_athlete_id AS "stravaAthleteId",
+            athlete_name AS "athleteName"
+     FROM athlete_strava_connections
+     ORDER BY athlete_id`
+  );
+  return result.rows.map((row) => ({
+    ...row,
+    stravaAthleteId: String(row.stravaAthleteId),
+  }));
+}
+
 export async function getAthleteStravaToken(
   athleteId: string
 ): Promise<StravaTokenData | null> {
