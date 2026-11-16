@@ -2,94 +2,128 @@
 
 import React from "react";
 import { ProgramConfig } from "@/types";
+import {
+  formatProgramKm,
+  getDayTargetKm,
+  getThaiDayName,
+  getWeeklyTargetKm,
+} from "@/utils/program";
 import { getWorkoutType, workoutStyles } from "@/utils/workout";
 
 interface WeeklyProgramProps {
   program: ProgramConfig;
 }
 
+function formatExpressionKm(value: number | null): string {
+  return value === null
+    ? "Null"
+    : Number.isInteger(value)
+      ? String(value)
+      : value.toFixed(1);
+}
+
 export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
-  const hasDistanceEstimates = program.schedule.every(
-    (day) =>
-      day.targetMaleKm !== undefined && day.targetFemaleKm !== undefined
+  const maleTotalKm = getWeeklyTargetKm(program.schedule, "M");
+  const femaleTotalKm = getWeeklyTargetKm(program.schedule, "F");
+  const maleDailyTargets = program.schedule.map((day) =>
+    day.isRest ? 0 : getDayTargetKm(day, "M")
   );
-  const maleDailyTargets = program.schedule.map((day) => day.targetMaleKm ?? 0);
-  const femaleDailyTargets = program.schedule.map(
-    (day) => day.targetFemaleKm ?? 0
+  const femaleDailyTargets = program.schedule.map((day) =>
+    day.isRest ? 0 : getDayTargetKm(day, "F")
   );
-  const maleTotalKm = maleDailyTargets.reduce((total, distance) => total + distance, 0);
-  const femaleTotalKm = femaleDailyTargets.reduce(
-    (total, distance) => total + distance,
-    0
-  );
-  const formatKm = (distance: number) =>
-    Number.isInteger(distance) ? String(distance) : distance.toFixed(1);
-  const fullMinRuns =
-    program.criteria.fullMinRuns ?? program.schedule.filter((day) => !day.isRest).length;
+  const programTrainingDays = program.schedule.filter((day) => !day.isRest).length;
   const fullMinPercent = program.criteria.fullMinPercent ?? 90;
   const almostMinPercent = program.criteria.almostMinPercent ?? 65;
 
   return (
     <section className="mb-6">
-      {/* 7 Days Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-        {program.schedule.map((item, idx) => {
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-7">
+        {program.schedule.map((item, index) => {
           const style = workoutStyles[getWorkoutType(item)];
+          const maleKm = getDayTargetKm(item, "M");
+          const femaleKm = getDayTargetKm(item, "F");
           return (
-            <div
-              key={idx}
-              className={`p-3 rounded-xl border transition flex flex-col justify-between min-h-[96px] ${style.card}`}
+            <article
+              key={`${item.day}-${index}`}
+              className={`flex min-h-[150px] flex-col rounded-xl border p-3 transition ${style.card}`}
             >
-              <div className="flex items-center justify-between">
-                <span
-                  className={`text-xs font-bold px-1.5 py-0.5 rounded ${style.badge}`}
-                >
-                  {item.day}
+              <div className="flex items-start justify-between gap-1">
+                <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${style.badge}`}>
+                  {getThaiDayName(item.day, index)}
                 </span>
-                {item.isRace && (
-                  <span className="text-[10px] uppercase font-bold text-kmutt-orange">
+                {item.isRest ? (
+                  <span className="text-[10px] font-semibold text-gray-400">
+                    วันพัก
+                  </span>
+                ) : item.isRace ? (
+                  <span className="text-[10px] font-bold uppercase text-kmutt-orange">
                     Race
                   </span>
-                )}
+                ) : null}
               </div>
 
-              <div className="mt-2">
-                <div className={`font-bold text-sm leading-tight ${style.accent}`}>
+              <div className="mt-2 flex-1">
+                <div className={`text-sm font-bold leading-tight ${style.accent}`}>
                   {item.title}
                 </div>
                 {item.subtitle && (
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    {item.subtitle}
-                  </div>
+                  <div className="mt-0.5 text-xs text-gray-400">{item.subtitle}</div>
                 )}
-                {item.targetMaleKm !== undefined &&
-                  item.targetFemaleKm !== undefined && (
-                    <div className="mt-1.5 inline-flex rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-semibold text-gray-300">
-                      ~{formatKm(item.targetMaleKm)} กม. (ญ ~
-                      {formatKm(item.targetFemaleKm)} กม.)
-                    </div>
-                  )}
+                {item.detail && (
+                  <p className="mt-1 line-clamp-2 whitespace-pre-line text-[10px] leading-4 text-gray-500">
+                    {item.detail}
+                  </p>
+                )}
               </div>
-            </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-1.5 border-t border-white/10 pt-2">
+                <div className="rounded-lg border border-sky-400/20 bg-sky-400/5 px-2 py-1">
+                  <span className="block text-[9px] font-semibold text-sky-300">
+                    ชาย
+                  </span>
+                  <span className="text-xs font-bold text-white">
+                    {item.isRest ? "0" : formatProgramKm(maleKm)}{" "}
+                    <span className="text-[9px] font-medium text-gray-400">กม.</span>
+                  </span>
+                </div>
+                <div className="rounded-lg border border-pink-400/20 bg-pink-400/5 px-2 py-1">
+                  <span className="block text-[9px] font-semibold text-pink-300">
+                    หญิง
+                  </span>
+                  <span className="text-xs font-bold text-white">
+                    {item.isRest ? "0" : formatProgramKm(femaleKm)}{" "}
+                    <span className="text-[9px] font-medium text-gray-400">กม.</span>
+                  </span>
+                </div>
+              </div>
+            </article>
           );
         })}
       </div>
 
-      {hasDistanceEstimates && (
-        <div className="mt-3 rounded-xl border border-kmutt-orange/30 bg-kmutt-orange/10 px-3.5 py-2.5 text-xs text-gray-200">
-          <span className="font-semibold text-kmutt-orange">
-            รวมเป้าหมายทั้งสัปดาห์:{" "}
-          </span>
-          ชาย {maleDailyTargets.map(formatKm).join("+")} = {maleTotalKm.toFixed(1)} กม.
-          <span className="mx-1.5 text-gray-500">|</span>
-          หญิง {femaleDailyTargets.map(formatKm).join("+")} = {femaleTotalKm.toFixed(1)} กม.
+      <div className="mt-3 rounded-xl border border-kmutt-orange/30 bg-gradient-to-r from-kmutt-orange/10 via-kmutt-card to-kmutt-card px-4 py-3 text-xs text-gray-200 shadow-lg shadow-black/10">
+        <p className="font-bold text-kmutt-orange">
+          รวมเป้าหมายทั้งสัปดาห์
+        </p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <p>
+            <span className="font-semibold text-sky-300">ชาย </span>
+            <span className="font-medium tabular-nums">
+              {maleDailyTargets.map(formatExpressionKm).join("+")} ={" "}
+              {formatProgramKm(maleTotalKm)} กม.
+            </span>
+          </p>
+          <p>
+            <span className="font-semibold text-pink-300">หญิง </span>
+            <span className="font-medium tabular-nums">
+              {femaleDailyTargets.map(formatExpressionKm).join("+")} ={" "}
+              {formatProgramKm(femaleTotalKm)} กม.
+            </span>
+          </p>
         </div>
-      )}
+      </div>
 
-      <div
-        aria-label="Workout color legend"
-        className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium"
-      >
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-medium">
         {(["easy", "interval", "tempo", "long"] as const).map((type) => (
           <span
             key={type}
@@ -100,29 +134,17 @@ export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
         ))}
       </div>
 
-      {/* Criteria Rules Banner */}
-      <div className="mt-3 bg-kmutt-card/60 border border-kmutt-border px-3.5 py-2.5 rounded-xl text-xs text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-green-400 font-semibold">
-          • ครบโปรแกรม:
-        </span>
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-kmutt-border bg-kmutt-card/70 px-3.5 py-2.5 text-xs text-gray-400">
+        <span className="font-semibold text-green-400">ครบโปรแกรม:</span>
         <span>
-          ซ้อมอย่างน้อย {fullMinRuns} วัน และได้อย่างน้อย {fullMinPercent}% ของระยะเป้าหมาย
+          ซ้อมครบ {programTrainingDays} วันตามตาราง และได้อย่างน้อย {fullMinPercent}%
+          ของเป้าหมายรายสัปดาห์
         </span>
-        <span className="text-gray-600 hidden sm:inline">|</span>
-        <span className="text-amber-400 font-semibold">
-          • เกือบครบ:
-        </span>
+        <span className="hidden text-gray-600 sm:inline">|</span>
+        <span className="font-semibold text-amber-400">เกือบครบ:</span>
         <span>
-          {program.criteria.almostMinRuns} วันขึ้นไป และได้{" "}
-          {almostMinPercent}%
-        </span>
-        <span className="text-gray-400">
-          หรือได้ระยะทางครบ 100% และขาดวันซ้อมไม่เกิน 1 วัน
-        </span>
-        <span className="text-gray-600 hidden sm:inline">|</span>
-        <span className="text-gray-300">
-          % เทียบปริมาณทั้งสัปดาห์ (ชาย {program.targetMaleKm} กม. · หญิง{" "}
-          {program.targetFemaleKm} กม.) ไม่ต้องตรงวัน
+          {program.criteria.almostMinRuns} วันขึ้นไป และได้ {almostMinPercent}%
+          หรือได้ระยะครบ 100% และขาดไม่เกิน 1 วัน
         </span>
       </div>
     </section>

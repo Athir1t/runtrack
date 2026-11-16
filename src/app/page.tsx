@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import defaultProgram from "@/data/program.json";
 import { ProgramConfig, Athlete, StravaActivity } from "@/types";
 import { evaluateAthletes } from "@/utils/calculations";
+import { withDerivedProgramTargets } from "@/utils/program";
 import { Header } from "@/components/Header";
 import {
   ConnectWithStravaButton,
@@ -370,7 +371,7 @@ export default function Home() {
       throw new Error("ไม่สามารถบันทึกข้อมูลได้");
     }
 
-    setProgram(newProgram);
+    setProgram(withDerivedProgramTargets(newProgram));
     setRoster(newAthletes);
     const currentById = new Map(athletes.map((athlete) => [athlete.id, athlete]));
     setAthletes(

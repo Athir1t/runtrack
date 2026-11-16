@@ -17,7 +17,11 @@ admin can edit the roster and training program.
   `DATABASE_URL`. The app creates its tables and seeds the roster/program on
   its first request. A new hosted database does not automatically copy local
   database edits or synced activity history; reconnect Strava and sync the
-  weeks you need, or migrate those records separately.
+  weeks you need, or migrate those records separately. Weekly program days and
+  their separate male/female distance targets are stored in
+  `weekly_program_days`; the app creates this table and migrates saved program
+  schedules into it automatically, including existing configured targets for
+  matching legacy default weeks.
 - The app stores each athlete's Strava connection and access/refresh tokens in
   PostgreSQL. Every athlete must sign in and authorize the app individually;
   previously connected accounts must authorize again after this change.

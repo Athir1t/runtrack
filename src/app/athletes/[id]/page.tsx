@@ -82,37 +82,13 @@ function formatDate(dateString: string): string {
 function getTargetDistanceKm(
   schedule: DaySchedule,
   gender: Athlete["gender"]
-): number | undefined {
+): number | null {
+  if (schedule.isRest) return 0;
   const configuredTarget =
     gender === "F" ? schedule.targetFemaleKm : schedule.targetMaleKm;
-  if (configuredTarget !== undefined) return configuredTarget;
-  if (schedule.isRest) return 0;
-
-  if (gender === "F") {
-    const femaleTarget = schedule.subtitle?.match(/ญ\s*(\d+(?:\.\d+)?)/);
-    if (femaleTarget) return Number(femaleTarget[1]);
-  }
-
-  const distance = schedule.title.match(/(\d+(?:\.\d+)?)\s*(?:กม\.?|km)/i);
-  if (distance) return Number(distance[1]);
-
-  const duration = schedule.title.match(/(\d+)\s*ชม\.?(?:\s*(\d+))?/);
-  if (!duration) return undefined;
-  const minutes = Number(duration[1]) * 60 + Number(duration[2] || 0);
-  return Math.round(minutes / (gender === "F" ? 7 : 6));
-}
-
-function getIntervalLapTarget(
-  schedule: DaySchedule,
-  gender: Athlete["gender"]
-): number | undefined {
-  const titleTarget = schedule.title.match(/[×x]\s*(\d+)/i);
-  if (!titleTarget) return undefined;
-  if (gender === "F") {
-    const femaleTarget = schedule.subtitle?.match(/ญ\s*(\d+)/);
-    if (femaleTarget) return Number(femaleTarget[1]);
-  }
-  return Number(titleTarget[1]);
+  return typeof configuredTarget === "number" && configuredTarget > 0
+    ? configuredTarget
+    : null;
 }
 
 export default function AthleteActivitiesPage() {
@@ -292,24 +268,12 @@ export default function AthleteActivitiesPage() {
       );
       if (validActivities.length === 0) return completedCount;
 
-      const workoutType = getWorkoutType(schedule);
-      if (workoutType === "interval") {
-        const lapTarget = getIntervalLapTarget(schedule, athlete?.gender || "M");
-        const lapCount = validActivities.reduce(
-          (total, activity) => total + (activity.laps?.length || 0),
-          0
-        );
-        return lapTarget !== undefined && lapCount >= lapTarget
-          ? completedCount + 1
-          : completedCount;
-      }
-
       const targetKm = getTargetDistanceKm(schedule, athlete?.gender || "M");
       const actualKm = validActivities.reduce(
         (total, activity) => total + activity.distanceKm,
         0
       );
-      return targetKm !== undefined && actualKm >= targetKm
+      return targetKm !== null && actualKm >= targetKm
         ? completedCount + 1
         : completedCount;
     }, 0) || 0;
@@ -501,16 +465,9 @@ export default function AthleteActivitiesPage() {
                         0
                       );
                       const targetKm =
-                        schedule && !scheduledInterval
+                        schedule && !schedule.isRest
                           ? getTargetDistanceKm(schedule, athlete?.gender || "M")
-                          : undefined;
-                      const intervalLapTarget =
-                        schedule && scheduledInterval
-                          ? getIntervalLapTarget(
-                              schedule,
-                              athlete?.gender || "M"
-                            )
-                          : undefined;
+                          : null;
                       const intervalLapCount = validDayActivities.reduce(
                         (total, activity) =>
                           total + (activity.laps?.length || 0),
@@ -518,12 +475,9 @@ export default function AthleteActivitiesPage() {
                       );
                       const workoutTargetMet = schedule?.isRest
                         ? false
-                        : scheduledInterval
-                          ? intervalLapTarget !== undefined &&
-                            intervalLapCount >= intervalLapTarget
-                          : targetKm !== undefined && dayDistance >= targetKm;
+                        : targetKm !== null && dayDistance >= targetKm;
                       const progressPercent =
-                        targetKm && targetKm > 0
+                        targetKm !== null && targetKm > 0
                           ? Math.min((dayDistance / targetKm) * 100, 100)
                           : 0;
 
@@ -559,26 +513,7 @@ export default function AthleteActivitiesPage() {
                                 วิ่งชดเชย / ซ้อมเสริมในวันพัก
                               </div>
                             ) : null
-                          ) : scheduledInterval ? (
-                            <div
-                              className={`mb-3 rounded-lg border px-3 py-2 text-xs ${
-                                workoutTargetMet
-                                  ? "border-green-500/30 bg-green-500/10 text-green-200"
-                                  : "border-kmutt-border bg-black/20 text-gray-300"
-                              }`}
-                            >
-                              รอบวิ่ง: {intervalLapCount} รอบ
-                              {intervalLapTarget !== undefined
-                                ? ` (เป้าหมาย ${intervalLapTarget} รอบ)`
-                                : " (ยังไม่ได้กำหนดจำนวนรอบ)"}
-                              {validDayActivities.length === 0 &&
-                                " · ไม่พบกิจกรรมที่ผ่านเกณฑ์"}
-                              {workoutTargetMet && " · ผ่านเป้าหมาย"}
-                              {validDayActivities.length > 0 &&
-                                intervalLapCount === 0 &&
-                                " · ไม่มีข้อมูลรอบวิ่ง"}
-                            </div>
-                          ) : targetKm !== undefined ? (
+                          ) : targetKm !== null ? (
                             <div className="mb-3 rounded-lg border border-kmutt-border bg-black/20 px-3 py-2">
                               <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                                 <span className="text-gray-300">
@@ -612,8 +547,20 @@ export default function AthleteActivitiesPage() {
                                   style={{ width: `${progressPercent}%` }}
                                 />
                               </div>
+                              {scheduledInterval && (
+                                <p className="mt-2 text-[10px] text-gray-500">
+                                  จำนวนรอบจากข้อมูลกิจกรรม: {intervalLapCount} รอบ
+                                </p>
+                              )}
                             </div>
-                          ) : null}
+                          ) : schedule?.isRest ? null : (
+                            <div className="mb-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2 text-xs text-amber-100/80">
+                              เป้าหมายระยะทาง: Null · ยังไม่ได้กำหนดระยะสำหรับ
+                              {athlete?.gender === "F" ? "หญิง" : "ชาย"}
+                              {validDayActivities.length > 0 &&
+                                ` · วิ่งได้ ${dayDistance.toFixed(1)} กม.`}
+                            </div>
+                          )}
 
                           {dayActivities.length === 0 ? (
                             <p className="text-sm text-gray-500">ไม่มีข้อมูลกิจกรรม</p>

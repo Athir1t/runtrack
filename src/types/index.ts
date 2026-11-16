@@ -47,15 +47,15 @@ export interface DaySchedule {
   detail?: string;
   isRest?: boolean;
   isRace?: boolean;
-  targetMaleKm?: number;
-  targetFemaleKm?: number;
+  targetMaleKm?: number | null;
+  targetFemaleKm?: number | null;
 }
 
 export interface ProgramConfig {
   weekTitle: string;
   weekStartDate: string;
-  targetMaleKm: number;
-  targetFemaleKm: number;
+  targetMaleKm: number | null;
+  targetFemaleKm: number | null;
   criteria: {
     fullMinRuns?: number;
     fullMinPercent?: number;
@@ -69,9 +69,9 @@ export type TrainingStatus = "completed" | "almost" | "incomplete";
 
 export interface EvaluatedAthlete extends Athlete {
   rank: number;
-  targetKm: number;
+  targetKm: number | null;
   programTrainingDays: number;
-  percent: number;
+  percent: number | null;
   status: TrainingStatus;
   statusReason: string;
 }

@@ -2,8 +2,8 @@
   "2026-11-09": {
     "weekTitle": "สัปดาห์ที่ 2 : 9-15 November",
     "weekStartDate": "2026-11-09",
-    "targetMaleKm": 57,
-    "targetFemaleKm": 50,
+    "targetMaleKm": 49,
+    "targetFemaleKm": 43,
     "criteria": {
       "fullMinRuns": 6,
       "fullMinPercent": 90,
@@ -62,12 +62,12 @@
       },
       {
         "day": "อา",
-        "title": "แข่ง 5 กม.",
+        "title": "พัก",
         "subtitle": "",
-        "isRace": true,
-        "detail": "5km RACE",
-        "targetMaleKm": 8,
-        "targetFemaleKm": 7
+        "isRest": true,
+        "detail": "REST",
+        "targetMaleKm": 0,
+        "targetFemaleKm": 0
       }
     ]
   },

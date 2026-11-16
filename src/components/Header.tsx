@@ -67,6 +67,9 @@ export const Header: React.FC<HeaderProps> = ({
       setIsDisconnecting(false);
     }
   };
+  const formattedTeamKm = Number.isInteger(totalTeamKm)
+    ? totalTeamKm.toLocaleString()
+    : totalTeamKm.toFixed(1);
 
   return (
     <header className="mb-6">
@@ -109,35 +112,37 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right side stats & buttons */}
         <div className="flex flex-wrap items-center gap-3">
           {isAuthenticated && (
-            <div className="flex items-center gap-4 bg-kmutt-card border border-kmutt-border px-4 py-2.5 rounded-xl">
-            <div className="text-right">
-              <div className="text-2xl md:text-3xl font-black text-white leading-none">
-                {completedCount}{" "}
-                <span className="text-base text-gray-500 font-normal">
-                  / {allClubAthletesCount} คน
-                </span>
+            <div className="grid min-w-[250px] grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-kmutt-border bg-gradient-to-br from-kmutt-card to-black/20 px-3.5 py-3 shadow-lg shadow-black/10">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                  คนครบโปรแกรม
+                </p>
+                <p className="mt-1 whitespace-nowrap text-xl font-black leading-none text-white">
+                  {completedCount}
+                  <span className="ml-1 text-xs font-medium text-gray-400">
+                    / {allClubAthletesCount} คน
+                  </span>
+                </p>
+                <p className="mt-1.5 text-[9px] text-gray-500">
+                  ซิงค์แล้ว {syncedCount}/{allClubAthletesCount} คน
+                </p>
               </div>
-              <div className="text-[11px] text-gray-400 font-medium mt-0.5">
-                คนครบโปรแกรม
+              <div className="rounded-2xl border border-kmutt-orange/30 bg-gradient-to-br from-kmutt-orange/15 to-kmutt-card px-3.5 py-3 shadow-lg shadow-kmutt-orange/5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-kmutt-orange">
+                  เฉลี่ยต่อคน
+                </p>
+                <p className="mt-1 whitespace-nowrap text-xl font-black leading-none text-white">
+                  {syncedCount > 0
+                    ? (totalTeamKm / syncedCount).toFixed(1)
+                    : "0.0"}
+                  <span className="ml-1 text-[10px] font-bold text-gray-300">
+                    กม./คน
+                  </span>
+                </p>
+                <p className="mt-1.5 text-[9px] text-gray-400">
+                  รวม {formattedTeamKm} กม. · สัปดาห์นี้
+                </p>
               </div>
-              <div className="text-[10px] text-gray-500">
-                (ซิงค์ข้อมูลแล้ว {syncedCount}/{allClubAthletesCount} คน)
-              </div>
-            </div>
-
-            <div className="h-8 w-px bg-kmutt-border"></div>
-
-            <div className="text-right">
-              <div className="text-2xl md:text-3xl font-black text-white leading-none">
-                {totalTeamKm.toLocaleString()}
-              </div>
-              <div className="text-[11px] text-gray-400 font-medium mt-0.5">
-                กม. สัปดาห์นี้
-              </div>
-              <div className="text-[10px] text-gray-500">
-                เฉลี่ย {(totalTeamKm / (syncedCount || 1)).toFixed(1)} กม./คน
-              </div>
-            </div>
             </div>
           )}
 

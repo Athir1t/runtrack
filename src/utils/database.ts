@@ -3,6 +3,7 @@ import defaultAthletes from "@/data/athletes.json";
 import defaultProgram from "@/data/program.json";
 import defaultWeeklyPrograms from "@/data/program-weeks.json";
 import { Athlete, ProgramConfig, StravaActivity } from "@/types";
+import { withDerivedProgramTargets } from "@/utils/program";
 
 export interface StoredStravaActivity extends StravaActivity {
   athleteId: string;
@@ -113,6 +114,139 @@ async function seedRows(client: PoolClient): Promise<void> {
   );
 }
 
+async function migrateLegacyProgramDayTargets(client: PoolClient): Promise<void> {
+  const defaultPrograms: Record<string, ProgramConfig> = {
+    [(defaultProgram as ProgramConfig).weekStartDate]: defaultProgram as ProgramConfig,
+    ...(defaultWeeklyPrograms as Record<string, ProgramConfig>),
+  };
+
+  for (const [weekStart, defaultWeek] of Object.entries(defaultPrograms)) {
+    const result = await client.query<{ program: ProgramConfig }>(
+      "SELECT program FROM weekly_programs WHERE week_start = $1::date",
+      [weekStart]
+    );
+    const savedProgram = result.rows[0]?.program;
+    if (!savedProgram) continue;
+
+    const matchesDefaultSchedule =
+      savedProgram.schedule.length === defaultWeek.schedule.length &&
+      savedProgram.schedule.every(
+        (day, index) =>
+          day.day === defaultWeek.schedule[index].day &&
+          day.title === defaultWeek.schedule[index].title
+      );
+    const hasSavedTargets = savedProgram.schedule.some(
+      (day) =>
+          !day.isRest &&
+          (day.targetMaleKm !== undefined || day.targetFemaleKm !== undefined)
+      );
+
+    if (matchesDefaultSchedule && !hasSavedTargets) {
+      for (const [dayIndex, day] of defaultWeek.schedule.entries()) {
+        await client.query(
+          `UPDATE weekly_program_days
+           SET target_male_km = $3,
+               target_female_km = $4,
+               targets_initialized = TRUE
+           WHERE week_start = $1::date
+             AND day_index = $2
+             AND targets_initialized = FALSE`,
+          [
+            weekStart,
+            dayIndex,
+            day.targetMaleKm ?? null,
+            day.targetFemaleKm ?? null,
+          ]
+        );
+      }
+    } else {
+      await client.query(
+        `UPDATE weekly_program_days
+         SET targets_initialized = TRUE
+         WHERE week_start = $1::date AND targets_initialized = FALSE`,
+        [weekStart]
+      );
+    }
+  }
+  await client.query(
+    `UPDATE weekly_program_days
+     SET targets_initialized = TRUE
+     WHERE targets_initialized = FALSE`
+  );
+}
+
+async function migrateWeekTwoRestDay(client: PoolClient): Promise<void> {
+  const migrationId = "2026-11-09-add-sunday-rest";
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+    migrationId,
+  ]);
+  const applied = await client.query(
+    "SELECT 1 FROM run_track_migrations WHERE migration_id = $1",
+    [migrationId]
+  );
+  if (applied.rowCount) return;
+
+  const weekStart = "2026-11-09";
+  const defaultWeek = (defaultWeeklyPrograms as Record<string, ProgramConfig>)[
+    weekStart
+  ];
+  const savedResult = await client.query<{ program: ProgramConfig }>(
+    "SELECT program FROM weekly_programs WHERE week_start = $1::date",
+    [weekStart]
+  );
+  const savedProgram = savedResult.rows[0]?.program;
+  const legacySunday = savedProgram?.schedule[6];
+  const matchesLegacySchedule =
+    savedProgram?.schedule.length === defaultWeek.schedule.length &&
+    savedProgram.schedule.every(
+      (day, index) =>
+        day.day === defaultWeek.schedule[index].day &&
+        (index === 6
+          ? day.title === "แข่ง 5 กม." &&
+            day.isRace === true &&
+            day.targetMaleKm === 8 &&
+            day.targetFemaleKm === 7
+          : day.title === defaultWeek.schedule[index].title)
+    );
+
+  if (savedProgram && legacySunday && matchesLegacySchedule) {
+    const updatedProgram = withDerivedProgramTargets({
+      ...savedProgram,
+      schedule: savedProgram.schedule.map((day, index) =>
+        index === 6 ? defaultWeek.schedule[6] : day
+      ),
+    });
+    const restDay = defaultWeek.schedule[6];
+    await client.query(
+      `UPDATE weekly_program_days
+       SET title = $3, subtitle = $4, detail = $5, is_rest = TRUE,
+           is_race = FALSE, target_male_km = $6, target_female_km = $7,
+           targets_initialized = TRUE
+       WHERE week_start = $1::date AND day_index = $2`,
+      [
+        weekStart,
+        6,
+        restDay.title,
+        restDay.subtitle ?? null,
+        restDay.detail ?? null,
+        restDay.targetMaleKm ?? null,
+        restDay.targetFemaleKm ?? null,
+      ]
+    );
+    await client.query(
+      `UPDATE weekly_programs
+       SET program = $2::jsonb, updated_at = NOW()
+       WHERE week_start = $1::date`,
+      [weekStart, JSON.stringify(updatedProgram)]
+    );
+  }
+
+  await client.query(
+    "INSERT INTO run_track_migrations (migration_id) VALUES ($1) ON CONFLICT DO NOTHING",
+    [migrationId]
+  );
+}
+
 async function initializeSchema(): Promise<void> {
   const pool = getPool();
   const client = await pool.connect();
@@ -136,6 +270,28 @@ async function initializeSchema(): Promise<void> {
         program JSONB NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS run_track_migrations (
+        migration_id TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS weekly_program_days (
+        week_start DATE NOT NULL REFERENCES weekly_programs(week_start) ON DELETE CASCADE,
+        day_index SMALLINT NOT NULL CHECK (day_index BETWEEN 0 AND 6),
+        day TEXT NOT NULL,
+        title TEXT NOT NULL,
+        subtitle TEXT,
+        detail TEXT,
+        is_rest BOOLEAN NOT NULL DEFAULT FALSE,
+        is_race BOOLEAN NOT NULL DEFAULT FALSE,
+        target_male_km NUMERIC(10, 2),
+        target_female_km NUMERIC(10, 2),
+        targets_initialized BOOLEAN NOT NULL DEFAULT FALSE,
+        PRIMARY KEY (week_start, day_index)
+      );
+      ALTER TABLE weekly_program_days
+      ADD COLUMN IF NOT EXISTS targets_initialized BOOLEAN NOT NULL DEFAULT FALSE;
 
       CREATE TABLE IF NOT EXISTS strava_connections (
         singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
@@ -206,6 +362,34 @@ async function initializeSchema(): Promise<void> {
       ON weekly_activities (athlete_id, week_start, start_date_local)
     `);
     await seedRows(client);
+    await client.query(`
+      INSERT INTO weekly_program_days
+        (week_start, day_index, day, title, subtitle, detail, is_rest, is_race,
+         target_male_km, target_female_km, targets_initialized)
+      SELECT
+        programs.week_start,
+        (day_row.ordinality - 1)::smallint,
+        day_row.day->>'day',
+        day_row.day->>'title',
+        NULLIF(day_row.day->>'subtitle', ''),
+        NULLIF(day_row.day->>'detail', ''),
+        COALESCE((day_row.day->>'isRest')::boolean, FALSE),
+        COALESCE((day_row.day->>'isRace')::boolean, FALSE),
+        NULLIF(day_row.day->>'targetMaleKm', 'null')::numeric,
+        NULLIF(day_row.day->>'targetFemaleKm', 'null')::numeric,
+        (day_row.day ? 'targetMaleKm') OR (day_row.day ? 'targetFemaleKm')
+      FROM weekly_programs AS programs
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE
+          WHEN jsonb_typeof(programs.program->'schedule') = 'array'
+          THEN programs.program->'schedule'
+          ELSE '[]'::jsonb
+        END
+      ) WITH ORDINALITY AS day_row(day, ordinality)
+      ON CONFLICT (week_start, day_index) DO NOTHING
+    `);
+    await migrateWeekTwoRestDay(client);
+    await migrateLegacyProgramDayTargets(client);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -296,37 +480,43 @@ export async function getWeeklyProgram(
   const savedProgram = result.rows[0]?.program;
   if (!savedProgram) return null;
 
-  const defaultPrograms = {
-    [(defaultProgram as ProgramConfig).weekStartDate]: defaultProgram as ProgramConfig,
-    ...(defaultWeeklyPrograms as Record<string, ProgramConfig>),
-  };
-  const defaultWeek =
-    defaultPrograms[weekStart] || (defaultProgram as ProgramConfig);
-  if (
-    !defaultWeek ||
-    savedProgram.schedule.length !== defaultWeek.schedule.length ||
-    savedProgram.schedule.some(
-      (day, index) =>
-        day.day !== defaultWeek.schedule[index].day ||
-        day.title !== defaultWeek.schedule[index].title
-    ) ||
-    savedProgram.schedule.some(
-      (day) => day.targetMaleKm !== undefined || day.targetFemaleKm !== undefined
-    )
-  ) {
-    return savedProgram;
-  }
-
-  return {
+  const daysResult = await pool.query<{
+    day: string;
+    title: string;
+    subtitle: string | null;
+    detail: string | null;
+    isRest: boolean;
+    isRace: boolean;
+    targetMaleKm: string | null;
+    targetFemaleKm: string | null;
+  }>(
+    `SELECT day, title, subtitle, detail, is_rest AS "isRest",
+            is_race AS "isRace", target_male_km AS "targetMaleKm",
+            target_female_km AS "targetFemaleKm"
+     FROM weekly_program_days
+     WHERE week_start = $1::date
+     ORDER BY day_index`,
+    [weekStart]
+  );
+  const schedule = daysResult.rows.length
+    ? daysResult.rows.map((day) => ({
+        day: day.day,
+        title: day.title,
+        subtitle: day.subtitle ?? undefined,
+        detail: day.detail ?? undefined,
+        isRest: day.isRest,
+        isRace: day.isRace,
+        targetMaleKm:
+          day.targetMaleKm === null ? null : Number(day.targetMaleKm),
+        targetFemaleKm:
+          day.targetFemaleKm === null ? null : Number(day.targetFemaleKm),
+      }))
+    : savedProgram.schedule;
+  return withDerivedProgramTargets({
     ...savedProgram,
-    targetMaleKm: defaultWeek.targetMaleKm,
-    targetFemaleKm: defaultWeek.targetFemaleKm,
-    schedule: savedProgram.schedule.map((day, index) => ({
-      ...day,
-      targetMaleKm: defaultWeek.schedule[index].targetMaleKm,
-      targetFemaleKm: defaultWeek.schedule[index].targetFemaleKm,
-    })),
-  };
+    weekStartDate: weekStart,
+    schedule,
+  });
 }
 
 export async function saveWeeklyProgram(
@@ -334,14 +524,52 @@ export async function saveWeeklyProgram(
   program: ProgramConfig
 ): Promise<void> {
   const pool = await ensureDatabase();
-  await pool.query(
-    `INSERT INTO weekly_programs (week_start, program)
-     VALUES ($1::date, $2::jsonb)
-     ON CONFLICT (week_start) DO UPDATE SET
-       program = EXCLUDED.program,
-       updated_at = NOW()`,
-    [weekStart, JSON.stringify({ ...program, weekStartDate: weekStart })]
-  );
+  const normalizedProgram = withDerivedProgramTargets({
+    ...program,
+    weekStartDate: weekStart,
+  });
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO weekly_programs (week_start, program)
+       VALUES ($1::date, $2::jsonb)
+       ON CONFLICT (week_start) DO UPDATE SET
+         program = EXCLUDED.program,
+         updated_at = NOW()`,
+      [weekStart, JSON.stringify(normalizedProgram)]
+    );
+    await client.query(
+      "DELETE FROM weekly_program_days WHERE week_start = $1::date",
+      [weekStart]
+    );
+    for (const [dayIndex, day] of normalizedProgram.schedule.entries()) {
+      await client.query(
+        `INSERT INTO weekly_program_days
+          (week_start, day_index, day, title, subtitle, detail, is_rest, is_race,
+           target_male_km, target_female_km, targets_initialized)
+           VALUES ($1::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE)`,
+        [
+          weekStart,
+          dayIndex,
+          day.day,
+          day.title,
+          day.subtitle || null,
+          day.detail || null,
+          Boolean(day.isRest),
+          Boolean(day.isRace),
+          day.targetMaleKm ?? null,
+          day.targetFemaleKm ?? null,
+        ]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getStravaConnection(): Promise<{

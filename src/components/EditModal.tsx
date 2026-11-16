@@ -1,8 +1,14 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ProgramConfig, Athlete } from "@/types";
+import { ProgramConfig, Athlete, DaySchedule } from "@/types";
 import { X, Plus, Trash2, Save, UserPlus } from "lucide-react";
+import {
+  formatProgramKm,
+  getThaiDayName,
+  getWeeklyTargetKm,
+  withDerivedProgramTargets,
+} from "@/utils/program";
 
 interface EditModalProps {
   isOpen: boolean;
@@ -63,6 +69,21 @@ export const EditModal: React.FC<EditModalProps> = ({
     setEditAthletes(editAthletes.filter((a) => a.id !== id));
   };
 
+  const updateScheduleDay = (index: number, updates: Partial<DaySchedule>) => {
+    setEditProgram((current) =>
+      withDerivedProgramTargets({
+        ...current,
+        schedule: current.schedule.map((day, dayIndex) =>
+          dayIndex === index ? { ...day, ...updates } : day
+        ),
+      })
+    );
+  };
+
+  const trainingDays = editProgram.schedule.filter((day) => !day.isRest).length;
+  const maleTotalKm = getWeeklyTargetKm(editProgram.schedule, "M");
+  const femaleTotalKm = getWeeklyTargetKm(editProgram.schedule, "F");
+
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-kmutt-card border border-kmutt-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
@@ -106,7 +127,7 @@ export const EditModal: React.FC<EditModalProps> = ({
           {activeTab === "program" ? (
             <div className="space-y-5">
               {/* General Week Settings */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-black/20 p-4 rounded-xl border border-kmutt-border">
+              <div className="grid grid-cols-1 gap-4 rounded-2xl border border-kmutt-border bg-gradient-to-br from-white/[0.04] to-transparent p-4 md:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 mb-1">
                     หัวข้อสัปดาห์
@@ -123,68 +144,123 @@ export const EditModal: React.FC<EditModalProps> = ({
                     className="w-full bg-[#111619] border border-kmutt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-kmutt-orange"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">
-                    เป้าหมายระยะ ชาย (กม.)
-                  </label>
-                  <input
-                    type="number"
-                    value={editProgram.targetMaleKm}
-                    onChange={(e) =>
-                      setEditProgram({
-                        ...editProgram,
-                        targetMaleKm: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full bg-[#111619] border border-kmutt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-kmutt-orange"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-sky-400/20 bg-sky-400/5 p-3">
+                    <span className="text-[11px] font-semibold text-sky-300">
+                      เป้าหมายชาย · รวมรายวัน
+                    </span>
+                    <p className="mt-1 text-xl font-black text-white">
+                      {formatProgramKm(maleTotalKm)}
+                      <span className="ml-1 text-xs font-semibold text-gray-400">กม.</span>
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-pink-400/20 bg-pink-400/5 p-3">
+                    <span className="text-[11px] font-semibold text-pink-300">
+                      เป้าหมายหญิง · รวมรายวัน
+                    </span>
+                    <p className="mt-1 text-xl font-black text-white">
+                      {formatProgramKm(femaleTotalKm)}
+                      <span className="ml-1 text-xs font-semibold text-gray-400">กม.</span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">
-                    เป้าหมายระยะ หญิง (กม.)
+                <div className="grid grid-cols-2 gap-3 md:col-span-2 md:grid-cols-4">
+                  <label className="text-xs font-semibold text-gray-400">
+                    วันขั้นต่ำเกือบครบ
+                    <input
+                      type="number"
+                      min="0"
+                      max="7"
+                      value={editProgram.criteria.almostMinRuns}
+                      onChange={(event) =>
+                        setEditProgram({
+                          ...editProgram,
+                          criteria: {
+                            ...editProgram.criteria,
+                            almostMinRuns: Number(event.target.value),
+                          },
+                        })
+                      }
+                      className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-white"
+                    />
                   </label>
-                  <input
-                    type="number"
-                    value={editProgram.targetFemaleKm}
-                    onChange={(e) =>
-                      setEditProgram({
-                        ...editProgram,
-                        targetFemaleKm: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full bg-[#111619] border border-kmutt-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-kmutt-orange"
-                  />
+                  <label className="text-xs font-semibold text-gray-400">
+                    ระยะครบขั้นต่ำ (%)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editProgram.criteria.fullMinPercent ?? 90}
+                      onChange={(event) =>
+                        setEditProgram({
+                          ...editProgram,
+                          criteria: {
+                            ...editProgram.criteria,
+                            fullMinPercent: Number(event.target.value),
+                          },
+                        })
+                      }
+                      className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-white"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-gray-400">
+                    ระยะเกือบครบขั้นต่ำ (%)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editProgram.criteria.almostMinPercent ?? 65}
+                      onChange={(event) =>
+                        setEditProgram({
+                          ...editProgram,
+                          criteria: {
+                            ...editProgram.criteria,
+                            almostMinPercent: Number(event.target.value),
+                          },
+                        })
+                      }
+                      className="mt-1 w-full rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-white"
+                    />
+                  </label>
+                  <div className="rounded-lg border border-kmutt-border bg-black/20 px-3 py-2 text-xs">
+                    <span className="text-gray-400">วันฝึกตามโปรแกรม</span>
+                    <p className="mt-1 text-base font-bold text-white">
+                      {trainingDays} วัน
+                    </p>
+                    <span className="text-[10px] text-gray-500">คำนวณจากวันไม่พัก</span>
+                  </div>
                 </div>
               </div>
 
               {/* Day Schedules */}
               <div>
                 <h3 className="text-sm font-bold text-white mb-3">
-                  โปรแกรมรายวัน (จันทร์ - อาทิตย์)
+                  โปรแกรมรายวัน (วันจันทร์ - วันอาทิตย์)
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {editProgram.schedule.map((item, index) => (
                     <div
                       key={index}
-                      className="bg-black/20 border border-kmutt-border p-3 rounded-xl flex flex-col gap-2"
+                      className={`flex flex-col gap-3 rounded-2xl border p-4 transition ${
+                        item.isRest
+                          ? "border-gray-600/50 bg-gray-500/[0.04]"
+                          : "border-kmutt-border bg-gradient-to-br from-white/[0.035] to-transparent"
+                      }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-kmutt-orange text-sm">
-                          วัน{item.day}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-bold text-kmutt-orange">
+                          {getThaiDayName(item.day, index)}
                         </span>
-                        <div className="flex items-center gap-3 text-xs">
+                        <div className="flex items-center gap-3 text-xs text-gray-300">
                           <label className="flex items-center gap-1 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={item.isRest || false}
-                              onChange={(e) => {
-                                const newSched = [...editProgram.schedule];
-                                newSched[index].isRest = e.target.checked;
-                                setEditProgram({
-                                  ...editProgram,
-                                  schedule: newSched,
-                                });
-                              }}
+                              onChange={(event) =>
+                                updateScheduleDay(index, {
+                                  isRest: event.target.checked,
+                                })
+                              }
                             />
                             <span>พัก (Rest)</span>
                           </label>
@@ -192,14 +268,11 @@ export const EditModal: React.FC<EditModalProps> = ({
                             <input
                               type="checkbox"
                               checked={item.isRace || false}
-                              onChange={(e) => {
-                                const newSched = [...editProgram.schedule];
-                                newSched[index].isRace = e.target.checked;
-                                setEditProgram({
-                                  ...editProgram,
-                                  schedule: newSched,
-                                });
-                              }}
+                              onChange={(event) =>
+                                updateScheduleDay(index, {
+                                  isRace: event.target.checked,
+                                })
+                              }
                             />
                             <span>แข่ง (Race)</span>
                           </label>
@@ -207,32 +280,85 @@ export const EditModal: React.FC<EditModalProps> = ({
                       </div>
                       <input
                         type="text"
-                        placeholder="ข้อความโปรแกรม (เช่น 400 ม. x 15)"
+                        aria-label={`${getThaiDayName(item.day, index)} คำอธิบายโปรแกรม`}
+                        placeholder="คำอธิบายโปรแกรม เช่น 400 ม. × 15"
                         value={item.title}
-                        onChange={(e) => {
-                          const newSched = [...editProgram.schedule];
-                          newSched[index].title = e.target.value;
-                          setEditProgram({
-                            ...editProgram,
-                            schedule: newSched,
-                          });
-                        }}
-                        className="bg-[#111619] border border-kmutt-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-kmutt-orange"
+                        onChange={(event) =>
+                          updateScheduleDay(index, { title: event.target.value })
+                        }
+                        className="rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-sm text-white focus:border-kmutt-orange focus:outline-none"
                       />
                       <input
                         type="text"
-                        placeholder="หมายเหตุย่อย (เช่น ญ 10-12)"
+                        aria-label={`${getThaiDayName(item.day, index)} หมายเหตุ`}
+                        placeholder="หมายเหตุเพิ่มเติม"
                         value={item.subtitle || ""}
-                        onChange={(e) => {
-                          const newSched = [...editProgram.schedule];
-                          newSched[index].subtitle = e.target.value;
-                          setEditProgram({
-                            ...editProgram,
-                            schedule: newSched,
-                          });
-                        }}
-                        className="bg-[#111619] border border-kmutt-border rounded-lg px-3 py-1 text-gray-400 text-xs focus:outline-none focus:border-kmutt-orange"
+                        onChange={(event) =>
+                          updateScheduleDay(index, {
+                            subtitle: event.target.value,
+                          })
+                        }
+                        className="rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-xs text-gray-300 focus:border-kmutt-orange focus:outline-none"
                       />
+                      <textarea
+                        aria-label={`${getThaiDayName(item.day, index)} รายละเอียด`}
+                        placeholder="รายละเอียดหรือคำแนะนำการฝึก"
+                        value={item.detail || ""}
+                        rows={2}
+                        onChange={(event) =>
+                          updateScheduleDay(index, { detail: event.target.value })
+                        }
+                        className="resize-y rounded-lg border border-kmutt-border bg-[#111619] px-3 py-2 text-xs text-gray-300 focus:border-kmutt-orange focus:outline-none"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="rounded-lg border border-sky-400/20 bg-sky-400/[0.04] p-2.5 text-[11px] font-semibold text-sky-300">
+                          เป้าหมายชาย (กม.)
+                          <input
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                            value={item.targetMaleKm ?? ""}
+                            disabled={item.isRest}
+                            aria-label={`${getThaiDayName(item.day, index)} เป้าหมายชายเป็นกิโลเมตร`}
+                            placeholder="Null"
+                            onChange={(event) =>
+                              updateScheduleDay(index, {
+                                targetMaleKm:
+                                  event.target.value === ""
+                                    ? null
+                                    : Number(event.target.value),
+                              })
+                            }
+                            className="mt-1.5 w-full rounded-md border border-kmutt-border bg-[#111619] px-2.5 py-2 text-sm font-bold text-white outline-none focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        </label>
+                        <label className="rounded-lg border border-pink-400/20 bg-pink-400/[0.04] p-2.5 text-[11px] font-semibold text-pink-300">
+                          เป้าหมายหญิง (กม.)
+                          <input
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                            value={item.targetFemaleKm ?? ""}
+                            disabled={item.isRest}
+                            aria-label={`${getThaiDayName(item.day, index)} เป้าหมายหญิงเป็นกิโลเมตร`}
+                            placeholder="Null"
+                            onChange={(event) =>
+                              updateScheduleDay(index, {
+                                targetFemaleKm:
+                                  event.target.value === ""
+                                    ? null
+                                    : Number(event.target.value),
+                              })
+                            }
+                            className="mt-1.5 w-full rounded-md border border-kmutt-border bg-[#111619] px-2.5 py-2 text-sm font-bold text-white outline-none focus:border-pink-400 disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-[10px] text-gray-500">
+                        {item.isRest
+                          ? "วันพักไม่นับเป็นวันฝึกและไม่นำระยะเป้าหมายมาคำนวณ"
+                          : "ตัวเลขนี้ใช้คำนวณเท่านั้น ข้อความโปรแกรมเป็นคำอธิบาย"}
+                      </p>
                     </div>
                   ))}
                 </div>

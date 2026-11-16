@@ -96,11 +96,13 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                           <span className="text-xs text-gray-400 font-normal">กม.</span>
                         </div>
                         <div className="mt-0.5 text-[10px] font-normal text-gray-400">
-                          {athlete.distanceKm < athlete.targetKm
-                            ? `เป้า: ${athlete.targetKm.toFixed(1)} กม. (ขาด ${(athlete.targetKm - athlete.distanceKm).toFixed(1)} กม.)`
-                            : athlete.distanceKm > athlete.targetKm
-                              ? `เป้า: ${athlete.targetKm.toFixed(1)} กม. (+${(athlete.distanceKm - athlete.targetKm).toFixed(1)} กม.)`
-                              : `ถึงเป้า ${athlete.targetKm.toFixed(1)} กม.`}
+                          {athlete.targetKm === null
+                            ? "เป้าหมาย: Null"
+                            : athlete.distanceKm < athlete.targetKm
+                              ? `เป้า: ${athlete.targetKm.toFixed(1)} กม. (ขาด ${(athlete.targetKm - athlete.distanceKm).toFixed(1)} กม.)`
+                              : athlete.distanceKm > athlete.targetKm
+                                ? `เป้า: ${athlete.targetKm.toFixed(1)} กม. (+${(athlete.distanceKm - athlete.targetKm).toFixed(1)} กม.)`
+                                : `ถึงเป้า ${athlete.targetKm.toFixed(1)} กม.`}
                         </div>
                       </>
                     )}
@@ -160,10 +162,14 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                     ) : (
                       <>
                         <div className={athlete.status === "completed" ? "text-green-400" : "text-gray-300"}>
-                          {athlete.percent}%
+                          {athlete.percent === null ? "Null" : `${athlete.percent}%`}
                         </div>
                         <div className="mt-0.5 whitespace-nowrap text-[10px] font-normal text-gray-400">
-                          ({athlete.distanceKm.toFixed(1)} / {athlete.targetKm.toFixed(1)} กม.)
+                          ({athlete.distanceKm.toFixed(1)} /{" "}
+                          {athlete.targetKm === null
+                            ? "Null"
+                            : athlete.targetKm.toFixed(1)}{" "}
+                          กม.)
                         </div>
                       </>
                     )}
