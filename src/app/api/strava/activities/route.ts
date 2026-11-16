@@ -67,15 +67,17 @@ export async function GET(request: Request) {
       }
     }
 
-    const summaries = await getWeeklyAthleteActivitySummaries(weekStart);
-    const roster = await getAthletes();
+    const [summaries, roster] = await Promise.all([
+      getWeeklyAthleteActivitySummaries(weekStart),
+      getAthletes(),
+    ]);
     const athleteNames = new Map(roster.map((athlete) => [athlete.id, athlete.nickname]));
     const athleteSummaries = summaries.map((summary) => ({
       ...summary,
       athleteName: athleteNames.get(summary.athleteId) || summary.athleteId,
     }));
     const requestedAthleteId = searchParams.get("athleteId");
-    const activities = isAuthenticated
+    const activities = isAuthenticated && forceRefresh
       ? (await getAllWeeklyActivities(weekStart))
           .filter(
             (activity) =>
@@ -91,6 +93,7 @@ export async function GET(request: Request) {
       authenticated: isAuthenticated,
       connected,
       athleteName,
+      athletes: roster,
       activities,
       athleteSummaries,
       source: "postgres",

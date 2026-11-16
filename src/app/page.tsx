@@ -16,6 +16,7 @@ const FIRST_WEEK_START = defaultProgram.weekStartDate;
 interface WeeklyActivitiesResponse {
   connected: boolean;
   athleteName?: string;
+  athletes: Athlete[];
   activities: StravaActivity[];
   athleteSummaries?: Array<{
     athleteId: string;
@@ -113,33 +114,29 @@ export default function Home() {
     forceRefresh = false
   ) => {
     try {
-      const [programResponse, athletesResponse, activitiesResponse] =
-        await Promise.all([
-          fetch(`/api/program?weekStart=${encodeURIComponent(weekStartDate)}`),
-          fetch("/api/athletes"),
-          fetch(
-            `/api/strava/activities?weekStart=${encodeURIComponent(weekStartDate)}${
-              forceRefresh ? "&refresh=1" : ""
-            }`,
-            { cache: "no-store" }
-          ),
-        ]);
+      const [programResponse, activitiesResponse] = await Promise.all([
+        fetch(`/api/program?weekStart=${encodeURIComponent(weekStartDate)}`),
+        fetch(
+          `/api/strava/activities?weekStart=${encodeURIComponent(weekStartDate)}${
+            forceRefresh ? "&refresh=1" : ""
+          }`,
+          { cache: "no-store" }
+        ),
+      ]);
 
-      if (!programResponse.ok || !athletesResponse.ok) {
+      if (!programResponse.ok) {
         throw new Error("ไม่สามารถโหลดข้อมูลสัปดาห์นี้ได้");
       }
 
-      const [weekProgram, savedAthletes, activityData] = await Promise.all([
+      const [weekProgram, activityData] = await Promise.all([
         programResponse.json() as Promise<ProgramConfig>,
-        athletesResponse.json() as Promise<Athlete[]>,
         activitiesResponse.json() as Promise<WeeklyActivitiesResponse>,
       ]);
       setProgram(weekProgram);
-      setRoster(savedAthletes);
 
       if (!activitiesResponse.ok) {
         setIsStravaConnected(false);
-        setAthletes(getUnsyncedRoster(savedAthletes));
+        setAthletes(getUnsyncedRoster(roster));
         setStravaStatus(
           showStatus
             ? activityData.message || "ไม่สามารถโหลดกิจกรรมจาก Strava ได้"
@@ -148,6 +145,7 @@ export default function Home() {
         return;
       }
 
+      setRoster(activityData.athletes);
       setIsStravaConnected(activityData.connected);
       const summaries = new Map(
         (activityData.athleteSummaries || []).map((summary) => [
@@ -156,7 +154,7 @@ export default function Home() {
         ])
       );
       setAthletes(
-        savedAthletes
+        activityData.athletes
           .filter((item) => item.inClub)
           .map((item) => {
             const summary = summaries.get(item.id);
@@ -243,14 +241,13 @@ export default function Home() {
               : null
           );
           setIsStravaConnected(Boolean(athlete.authenticated));
-          void loadWeekData();
         }
       })
       .catch((error) => console.error("Error checking admin session:", error));
     return () => {
       active = false;
     };
-  }, [loadWeekData]);
+  }, []);
 
   const handleAdminAction = async () => {
     if (!isAdmin) {
