@@ -5,7 +5,7 @@ const OAUTH_STATE_COOKIE = "runtrack_strava_state";
 const OAUTH_FLOW_COOKIE = "runtrack_strava_flow";
 
 export async function GET(req: Request) {
-  const clientId = process.env.STRAVA_CLIENT_ID;
+  const clientId = process.env.STRAVA_CLIENT_ID?.trim();
   const requestUrl = new URL(req.url);
   const { origin } = requestUrl;
   if (!clientId) {
