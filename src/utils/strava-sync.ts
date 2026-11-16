@@ -9,6 +9,7 @@ import {
 } from "@/utils/database";
 import { getValidAccessToken } from "@/utils/strava";
 import { getWorkoutType } from "@/utils/workout";
+import { getDefaultWeek } from "@/utils/program-week";
 
 interface StravaProfile {
   id: number;
@@ -96,8 +97,8 @@ export async function syncAthleteWeek(
     throw new Error("The saved Strava connection does not match this athlete.");
   }
 
-  const program = await getWeeklyProgram(weekStart);
-  if (!program) throw new Error("No training program exists for this week.");
+  const program =
+    (await getWeeklyProgram(weekStart)) || getDefaultWeek(weekStart);
   const weekStartTime = new Date(`${weekStart}T00:00:00+07:00`).getTime();
   const weekEndTime = weekStartTime + 7 * 24 * 60 * 60 * 1000;
   const response = await fetch(
