@@ -14,8 +14,13 @@ import { AdminLoginModal } from "@/components/AdminLoginModal";
 const FIRST_WEEK_START = defaultProgram.weekStartDate;
 
 interface WeeklyActivitiesResponse {
+  authenticated: boolean;
+  isAdmin: boolean;
+  athleteId?: string;
+  sessionAthleteName?: string;
   connected: boolean;
   athleteName?: string;
+  program: ProgramConfig;
   athletes: Athlete[];
   activities: StravaActivity[];
   athleteSummaries?: Array<{
@@ -101,6 +106,10 @@ export default function Home() {
   const [stravaStatus, setStravaStatus] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [athleteSession, setAthleteSession] = useState<{
+    athleteId: string;
+    athleteName: string;
+  } | null>(null);
 
   const {
     rankedAthletes,
@@ -114,37 +123,29 @@ export default function Home() {
     forceRefresh = false
   ) => {
     try {
-      const [programResponse, activitiesResponse] = await Promise.all([
-        fetch(`/api/program?weekStart=${encodeURIComponent(weekStartDate)}`),
-        fetch(
-          `/api/strava/activities?weekStart=${encodeURIComponent(weekStartDate)}${
-            forceRefresh ? "&refresh=1" : ""
-          }`,
-          { cache: "no-store" }
-        ),
-      ]);
-
-      if (!programResponse.ok) {
-        throw new Error("ไม่สามารถโหลดข้อมูลสัปดาห์นี้ได้");
-      }
-
-      const [weekProgram, activityData] = await Promise.all([
-        programResponse.json() as Promise<ProgramConfig>,
-        activitiesResponse.json() as Promise<WeeklyActivitiesResponse>,
-      ]);
-      setProgram(weekProgram);
-
+      const activitiesResponse = await fetch(
+        `/api/strava/activities?weekStart=${encodeURIComponent(weekStartDate)}${
+          forceRefresh ? "&refresh=1" : ""
+        }`,
+        { cache: "no-store" }
+      );
+      const activityData =
+        (await activitiesResponse.json()) as WeeklyActivitiesResponse;
       if (!activitiesResponse.ok) {
-        setIsStravaConnected(false);
-        setAthletes(getUnsyncedRoster(roster));
-        setStravaStatus(
-          showStatus
-            ? activityData.message || "ไม่สามารถโหลดกิจกรรมจาก Strava ได้"
-            : ""
-        );
-        return;
+        throw new Error(activityData.message || "ไม่สามารถโหลดข้อมูลสัปดาห์นี้ได้");
       }
 
+      const weekProgram = activityData.program;
+      setProgram(weekProgram);
+      setIsAdmin(activityData.isAdmin);
+      setAthleteSession(
+        activityData.athleteId && activityData.sessionAthleteName
+          ? {
+              athleteId: activityData.athleteId,
+              athleteName: activityData.sessionAthleteName,
+            }
+          : null
+      );
       setRoster(activityData.athletes);
       setIsStravaConnected(activityData.connected);
       const summaries = new Map(
@@ -164,8 +165,8 @@ export default function Home() {
                 .filter(
                   (day): day is number =>
                     day !== null &&
-                    program.schedule[day] !== undefined &&
-                    !program.schedule[day].isRest
+                    weekProgram.schedule[day] !== undefined &&
+                    !weekProgram.schedule[day].isRest
                 )
             ).size;
             return {
@@ -213,40 +214,6 @@ export default function Home() {
     } else if (params.has("admin")) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
-
-  const [athleteSession, setAthleteSession] = useState<{
-    athleteId: string;
-    athleteName: string;
-  } | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    Promise.all([
-      fetch("/api/admin/session", { cache: "no-store" }),
-      fetch("/api/athletes/session", { cache: "no-store" }),
-    ])
-      .then(async (response) => {
-        if (response.some((item) => !item.ok)) {
-          throw new Error("Unable to check login session");
-        }
-        return Promise.all(response.map((item) => item.json()));
-      })
-      .then(([admin, athlete]) => {
-        if (active) {
-          setIsAdmin(admin.authenticated);
-          setAthleteSession(
-            athlete.authenticated
-              ? { athleteId: athlete.athleteId, athleteName: athlete.athleteName }
-              : null
-          );
-          setIsStravaConnected(Boolean(athlete.authenticated));
-        }
-      })
-      .catch((error) => console.error("Error checking admin session:", error));
-    return () => {
-      active = false;
-    };
   }, []);
 
   const handleAdminAction = async () => {

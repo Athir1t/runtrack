@@ -12,6 +12,7 @@ export function evaluateAthletes(
 } {
   const inClubAthletes = athletes.filter((a) => a.inClub);
   const notInClub = athletes.filter((a) => !a.inClub);
+  const programTrainingDays = program.schedule.filter((day) => !day.isRest).length;
 
   // Show synced athletes first, ordered by weekly distance and training days.
   const sorted = [...inClubAthletes].sort((a, b) => {
@@ -26,17 +27,13 @@ export function evaluateAthletes(
 
   const rankedAthletes: EvaluatedAthlete[] = sorted.map((athlete, index) => {
     const trainingDays = athlete.trainingDays ?? athlete.runsCount;
-    const programTrainingDays = program.schedule.filter((day) => !day.isRest).length;
     const targetKm = athlete.gender === "F" ? program.targetFemaleKm : program.targetMaleKm;
     const rawPercent = targetKm > 0 ? (athlete.distanceKm / targetKm) * 100 : 0;
     const percent = Math.round(rawPercent);
 
     let status: TrainingStatus = "incomplete";
 
-    if (
-      trainingDays >= program.criteria.fullMinRuns &&
-      percent >= program.criteria.fullMinPercent
-    ) {
+    if (programTrainingDays > 0 && trainingDays >= programTrainingDays) {
       status = "completed";
     } else if (
       trainingDays >= program.criteria.almostMinRuns &&

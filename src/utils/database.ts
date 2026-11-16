@@ -70,37 +70,46 @@ function getPool(): Pool {
 }
 
 async function seedRows(client: PoolClient): Promise<void> {
-  for (const athlete of defaultAthletes as Athlete[]) {
-    await client.query(
-      `INSERT INTO athletes
-        (id, nickname, strava_name, gender, distance_km, runs_count, in_club, avatar_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        athlete.id,
-        athlete.nickname,
-        athlete.stravaName,
-        athlete.gender,
-        athlete.distanceKm,
-        athlete.runsCount,
-        athlete.inClub,
-        athlete.avatarUrl || null,
-      ]
-    );
-  }
+  const athletes = (defaultAthletes as Athlete[]).map((athlete) => ({
+    id: athlete.id,
+    nickname: athlete.nickname,
+    strava_name: athlete.stravaName,
+    gender: athlete.gender,
+    distance_km: athlete.distanceKm,
+    runs_count: athlete.runsCount,
+    in_club: athlete.inClub,
+    avatar_url: athlete.avatarUrl || null,
+  }));
+  await client.query(
+    `INSERT INTO athletes
+      (id, nickname, strava_name, gender, distance_km, runs_count, in_club, avatar_url)
+     SELECT id, nickname, strava_name, gender, distance_km,
+            runs_count, in_club, avatar_url
+     FROM jsonb_to_recordset($1::jsonb) AS seed(
+       id text, nickname text, strava_name text, gender text,
+       distance_km numeric, runs_count integer, in_club boolean, avatar_url text
+     )
+     ON CONFLICT (id) DO NOTHING`,
+    [JSON.stringify(athletes)]
+  );
 
   const programs = {
     [(defaultProgram as ProgramConfig).weekStartDate]: defaultProgram,
     ...(defaultWeeklyPrograms as Record<string, ProgramConfig>),
   };
-  for (const [weekStart, program] of Object.entries(programs)) {
-    await client.query(
-      `INSERT INTO weekly_programs (week_start, program)
-       VALUES ($1::date, $2::jsonb)
-       ON CONFLICT (week_start) DO NOTHING`,
-      [weekStart, JSON.stringify({ ...program, weekStartDate: weekStart })]
-    );
-  }
+  const weeklyPrograms = Object.entries(programs).map(([weekStart, program]) => ({
+    week_start: weekStart,
+    program: { ...program, weekStartDate: weekStart },
+  }));
+  await client.query(
+    `INSERT INTO weekly_programs (week_start, program)
+     SELECT week_start::date, program
+     FROM jsonb_to_recordset($1::jsonb) AS seed(
+       week_start text, program jsonb
+     )
+     ON CONFLICT (week_start) DO NOTHING`,
+    [JSON.stringify(weeklyPrograms)]
+  );
 }
 
 async function initializeSchema(): Promise<void> {
@@ -119,50 +128,44 @@ async function initializeSchema(): Promise<void> {
         in_club BOOLEAN NOT NULL DEFAULT TRUE,
         avatar_url TEXT,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS weekly_programs (
         week_start DATE PRIMARY KEY,
         program JSONB NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS strava_connections (
         singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
         athlete_id TEXT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
         athlete_name TEXT NOT NULL,
         connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS strava_oauth_tokens (
         singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
         access_token TEXT NOT NULL,
         refresh_token TEXT NOT NULL,
         expires_at BIGINT NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS athlete_strava_connections (
         athlete_id TEXT PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE,
         strava_athlete_id BIGINT NOT NULL UNIQUE,
         athlete_name TEXT NOT NULL,
         connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS athlete_strava_tokens (
         athlete_id TEXT PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE,
         access_token TEXT NOT NULL,
         refresh_token TEXT NOT NULL,
         expires_at BIGINT NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS manual_activities (
         id BIGSERIAL PRIMARY KEY,
         athlete_id TEXT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
@@ -173,9 +176,8 @@ async function initializeSchema(): Promise<void> {
         start_date_local TEXT NOT NULL,
         average_heartrate NUMERIC(6, 2),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS weekly_activities (
         activity_id BIGINT PRIMARY KEY,
         athlete_id TEXT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
@@ -189,18 +191,16 @@ async function initializeSchema(): Promise<void> {
         is_interval_day BOOLEAN NOT NULL DEFAULT FALSE,
         laps JSONB NOT NULL DEFAULT '[]'::jsonb,
         synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE TABLE IF NOT EXISTS weekly_activity_syncs (
         athlete_id TEXT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
         week_start DATE NOT NULL,
         synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         activity_count INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (athlete_id, week_start)
-      )
-    `);
-    await client.query(`
+      );
+
       CREATE INDEX IF NOT EXISTS weekly_activities_athlete_week_idx
       ON weekly_activities (athlete_id, week_start, start_date_local)
     `);

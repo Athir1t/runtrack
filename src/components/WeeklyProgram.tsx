@@ -68,8 +68,7 @@ export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
           • ครบโปรแกรม:
         </span>
         <span>
-          วิ่ง {program.criteria.fullMinRuns} ครั้งขึ้นไป และได้{" "}
-          {program.criteria.fullMinPercent}% ของโปรแกรม
+          ซ้อมครบ {program.schedule.filter((day) => !day.isRest).length} วันตามตาราง
         </span>
         <span className="text-gray-600 hidden sm:inline">|</span>
         <span className="text-amber-400 font-semibold">
