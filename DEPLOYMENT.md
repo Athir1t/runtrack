@@ -60,14 +60,22 @@ production; do not set `NEXT_PUBLIC_` on any server-side secret.
 
 ## Daily Strava sync
 
-The Vercel cron job in `vercel.json` refreshes the current Thailand training
-week once daily at **02:00 Thailand time**. It syncs every connected athlete
-using that athlete's saved token; athletes only need to authorize Strava once
-and do not need to press Sync every day. If authorization is revoked or expires,
-that athlete must reconnect. Add `CRON_SECRET` to Vercel's Production
-environment variables before deploying this version. Vercel invokes scheduled
-jobs for Production deployments, not Preview deployments. Generate the secret
-locally with:
+The Vercel cron job in `vercel.json` uses `0 19 * * *` (19:00 UTC, or
+02:00 in Thailand) to refresh the current Thailand training week. It syncs
+every connected athlete using that athlete's saved token; athletes only need
+to authorize Strava once and do not need to press Sync every day. If
+authorization is revoked or expires, that athlete must reconnect.
+
+Set `CRON_SECRET` in the Vercel project's **Production** environment variables
+before deploying. Vercel sends it as the `Authorization: Bearer ...` header.
+Cron jobs run only for Production deployments. Confirm the job is enabled in
+the project's **Schedules → Cron Jobs** dashboard; the project-level disable
+setting persists across deployments. On Hobby, jobs run once per day with up to
+59 minutes of scheduling variance; Pro and Enterprise provide minute-level
+precision. See Vercel's [Cron Jobs documentation](https://vercel.com/docs/schedules/cron-jobs/usage-and-pricing)
+and [Cron Jobs management guide](https://vercel.com/docs/schedules/cron-jobs/manage-cron-jobs).
+
+Generate the secret locally with:
 
 ```powershell
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"

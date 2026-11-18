@@ -1,24 +1,11 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { getAthleteStravaConnections } from "@/utils/database";
+import { getCurrentThailandWeekStart } from "@/utils/program-week";
 import { syncAthleteWeek } from "@/utils/strava-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-function getCurrentWeekStart(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = (type: string) => parts.find((part) => part.type === type)?.value;
-  const localDate = `${value("year")}-${value("month")}-${value("day")}`;
-  const weekStart = new Date(`${localDate}T00:00:00Z`);
-  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
-  return weekStart.toISOString().slice(0, 10);
-}
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -38,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const weekStart = getCurrentWeekStart();
+    const weekStart = getCurrentThailandWeekStart();
     const connections = await getAthleteStravaConnections();
     let nextConnection = 0;
     let synced = 0;

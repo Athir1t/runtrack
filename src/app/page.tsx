@@ -17,6 +17,10 @@ import { WeeklyProgram } from "@/components/WeeklyProgram";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { EditModal } from "@/components/EditModal";
 import { AdminLoginModal } from "@/components/AdminLoginModal";
+import {
+  getCurrentThailandWeekStart,
+  getDefaultWeek,
+} from "@/utils/program-week";
 
 const FIRST_WEEK_START = defaultProgram.weekStartDate;
 
@@ -90,10 +94,14 @@ function getTrainingWeekday(startDate: string, weekStart: string): number | null
 }
 
 export default function Home() {
-  const [program, setProgram] = useState<ProgramConfig>(defaultProgram as ProgramConfig);
+  const [weekStartDate, setWeekStartDate] = useState(
+    getCurrentThailandWeekStart
+  );
+  const [program, setProgram] = useState<ProgramConfig>(() =>
+    getDefaultWeek(weekStartDate)
+  );
   const [roster, setRoster] = useState<Athlete[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [weekStartDate, setWeekStartDate] = useState(FIRST_WEEK_START);
   const [isWeekDataLoading, setIsWeekDataLoading] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
