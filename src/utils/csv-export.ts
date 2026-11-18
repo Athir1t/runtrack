@@ -85,7 +85,11 @@ export function exportAthletesCsv(
       athlete.gender === "F" ? "หญิง" : "ชาย",
       ...schedule.map((day, index) => {
         if (athlete.isSynced === false) return "ยังไม่ซิงค์";
-        if (day.isRest) return "วันพัก";
+        if (day.isRest) {
+          return athlete.trainingDayIndexes?.includes(index)
+            ? "วิ่งชดเชยในวันพัก"
+            : "วันพัก";
+        }
         return athlete.trainingDayIndexes?.includes(index)
           ? "ซ้อมแล้ว"
           : "ขาดซ้อม";

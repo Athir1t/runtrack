@@ -4,7 +4,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import defaultProgram from "@/data/program.json";
 import { ProgramConfig, Athlete, StravaActivity } from "@/types";
 import { evaluateAthletes } from "@/utils/calculations";
-import { withDerivedProgramTargets } from "@/utils/program";
+import {
+  getCreditedTrainingDayCount,
+  withDerivedProgramTargets,
+} from "@/utils/program";
 import { Header } from "@/components/Header";
 import {
   ConnectWithStravaButton,
@@ -166,15 +169,17 @@ export default function Home() {
                 .filter(
                   (day): day is number =>
                     day !== null &&
-                    weekProgram.schedule[day] !== undefined &&
-                    !weekProgram.schedule[day].isRest
+                    weekProgram.schedule[day] !== undefined
                 )
             ));
             return {
               ...item,
               distanceKm: Number((summary?.distanceKm || 0).toFixed(1)),
               runsCount: summary?.runsCount || 0,
-              trainingDays: trainingDayIndexes.length,
+              trainingDays: getCreditedTrainingDayCount(
+                weekProgram.schedule,
+                trainingDayIndexes
+              ),
               trainingDayIndexes,
               isSynced: Boolean(summary),
             };

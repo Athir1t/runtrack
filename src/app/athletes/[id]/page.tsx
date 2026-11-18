@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { Activity, ArrowLeft, ChevronDown } from "lucide-react";
 import { Athlete, DaySchedule, ProgramConfig, StravaActivity } from "@/types";
 import { getWorkoutType, workoutStyles } from "@/utils/workout";
+import { getCreditedTrainingDayCount } from "@/utils/program";
 import { PoweredByStravaLogo, StravaIcon } from "@/components/StravaBrand";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -241,21 +242,23 @@ export default function AthleteActivitiesPage() {
   const weekStartTime = new Date(`${weekStart}T00:00:00Z`).getTime();
   const programTrainingDays =
     program?.schedule.filter((day) => !day.isRest).length || 0;
-  const trainingDays = Object.keys(activitiesByDay).filter((date) => {
+  const activityDayIndexes = Object.keys(activitiesByDay).map((date) => {
     const dayIndex = Math.floor(
       (new Date(`${date}T00:00:00Z`).getTime() - weekStartTime) /
         (24 * 60 * 60 * 1000)
     );
-    return (
-      dayIndex >= 0 &&
+    return dayIndex >= 0 &&
       program?.schedule[dayIndex] &&
-      !program.schedule[dayIndex].isRest &&
       activitiesByDay[date].some(
         (activity) =>
           activity.distanceKm >= 1 && activity.movingTimeSeconds >= 300
       )
-    );
-  }).length;
+      ? dayIndex
+      : null;
+  }).filter((dayIndex): dayIndex is number => dayIndex !== null);
+  const trainingDays = program
+    ? getCreditedTrainingDayCount(program.schedule, activityDayIndexes)
+    : 0;
   const completedWorkoutsCount =
     program?.schedule.reduce((completedCount, schedule, dayIndex) => {
       if (schedule.isRest) return completedCount;

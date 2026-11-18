@@ -137,12 +137,15 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                         >
                           {schedule.map((day, dayIndex) => {
                             const isRestDay = Boolean(day.isRest);
-                            const isCompleted =
-                              !isRestDay &&
+                            const hasActivity =
                               athlete.trainingDayIndexes?.includes(dayIndex) === true;
+                            const isCompleted = !isRestDay && hasActivity;
+                            const isRestCompensation = isRestDay && hasActivity;
                             const label = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"][dayIndex] ?? day.day;
                             const stateLabel = isRestDay
-                              ? "วันพัก"
+                              ? isRestCompensation
+                                ? "วิ่งชดเชยในวันพัก"
+                                : "วันพัก"
                               : isCompleted
                                 ? "ซ้อมแล้ว"
                                 : "ขาดซ้อม";
@@ -154,7 +157,9 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                                 title={`${label}: ${stateLabel}`}
                                 className={`flex h-4 min-w-4 items-center justify-center rounded px-0.5 text-[9px] font-semibold leading-none ${
                                   isRestDay
-                                    ? "border border-gray-600 text-gray-500"
+                                    ? isRestCompensation
+                                      ? "bg-sky-800 text-sky-200"
+                                      : "border border-gray-600 text-gray-500"
                                     : isCompleted
                                       ? "bg-green-800 text-green-200"
                                       : "bg-red-950 text-red-300"

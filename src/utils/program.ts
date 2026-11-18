@@ -60,6 +60,22 @@ export function getWeeklyTargetKm(
   );
 }
 
+export function getCreditedTrainingDayCount(
+  schedule: DaySchedule[],
+  activityDayIndexes: number[]
+): number {
+  const scheduledTrainingDays = schedule.filter((day) => !day.isRest).length;
+  const activeDays = new Set(
+    activityDayIndexes.filter(
+      (dayIndex) =>
+        Number.isInteger(dayIndex) &&
+        dayIndex >= 0 &&
+        dayIndex < schedule.length
+    )
+  );
+  return Math.min(scheduledTrainingDays, activeDays.size);
+}
+
 export function withDerivedProgramTargets(
   program: ProgramConfig
 ): ProgramConfig {

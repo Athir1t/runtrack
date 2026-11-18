@@ -1,5 +1,8 @@
 import { Athlete, EvaluatedAthlete, ProgramConfig, TrainingStatus } from "@/types";
-import { getWeeklyTargetKm } from "@/utils/program";
+import {
+  getCreditedTrainingDayCount,
+  getWeeklyTargetKm,
+} from "@/utils/program";
 
 export function evaluateAthletes(
   athletes: Athlete[],
@@ -19,21 +22,16 @@ export function evaluateAthletes(
   const almostMinPercent = program.criteria.almostMinPercent ?? 65;
 
   const evaluatedAthletes: EvaluatedAthlete[] = inClubAthletes.map((athlete) => {
-    const scheduledTrainingDayIndexes = athlete.trainingDayIndexes
-      ? new Set(
-          athlete.trainingDayIndexes.filter(
-            (dayIndex) =>
-              Number.isInteger(dayIndex) &&
-              dayIndex >= 0 &&
-              dayIndex < program.schedule.length &&
-              !program.schedule[dayIndex].isRest
-          )
+    const rawTrainingDays = athlete.trainingDayIndexes
+      ? getCreditedTrainingDayCount(
+          program.schedule,
+          athlete.trainingDayIndexes
         )
-      : null;
-    const trainingDays =
-      scheduledTrainingDayIndexes?.size ??
-      athlete.trainingDays ??
-      athlete.runsCount;
+      : athlete.trainingDays ?? athlete.runsCount;
+    const trainingDays = Math.min(
+      programTrainingDays,
+      Math.max(0, rawTrainingDays)
+    );
     const targetKm = getWeeklyTargetKm(program.schedule, athlete.gender);
     const rawPercent =
       targetKm !== null && targetKm > 0
