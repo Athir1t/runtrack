@@ -75,3 +75,19 @@ export interface EvaluatedAthlete extends Athlete {
   status: TrainingStatus;
   statusReason: string;
 }
+
+export interface OverallAthleteSummary {
+  id: string;
+  nickname: string;
+  gender: Athlete["gender"];
+  distanceKm: number;
+  targetKm: number | null;
+  trainingDays: number;
+  programTrainingDays: number;
+  percent: number | null;
+}
+
+export interface OverallSummaryResponse {
+  weeks: string[];
+  athletes: OverallAthleteSummary[];
+}

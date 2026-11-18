@@ -1,5 +1,12 @@
-import { EvaluatedAthlete, ProgramConfig } from "@/types";
+import type {
+  Athlete,
+  EvaluatedAthlete,
+  OverallSummaryResponse,
+  ProgramConfig,
+  StravaActivity,
+} from "@/types";
 import { formatProgramKm, getDayTargetKm, getThaiDayName } from "@/utils/program";
+import { getWorkoutType } from "@/utils/workout";
 
 type CsvValue = string | number | boolean | null | undefined;
 
@@ -116,4 +123,120 @@ export function exportAthletesCsv(
     ]),
   ];
   downloadCsv(`athletes-week-${program.weekStartDate}.csv`, rows);
+}
+
+export function exportOverallSummaryCsv(
+  summary: OverallSummaryResponse
+): void {
+  const firstWeek = summary.weeks[0] || "unknown";
+  const lastWeek = summary.weeks[summary.weeks.length - 1] || "unknown";
+  const rows: CsvValue[][] = [
+    ["สรุปรวมทุกสัปดาห์", `${firstWeek} - ${lastWeek}`],
+    ["จำนวนสัปดาห์", summary.weeks.length],
+    [],
+    [
+      "อันดับ",
+      "รหัสนักกีฬา",
+      "ชื่อเล่น",
+      "เพศ",
+      "ระยะรวม (กม.)",
+      "วันซ้อม",
+      "วันฝึกตามโปรแกรม",
+      "เป้าหมายรวม (กม.)",
+      "% โปรแกรม",
+    ],
+    ...summary.athletes.map((athlete, index) => [
+      index + 1,
+      athlete.id,
+      athlete.nickname,
+      athlete.gender === "F" ? "หญิง" : "ชาย",
+      athlete.distanceKm.toFixed(1),
+      athlete.trainingDays,
+      athlete.programTrainingDays,
+      athlete.targetKm === null ? "Null" : athlete.targetKm.toFixed(1),
+      athlete.percent === null ? "Null" : `${athlete.percent}%`,
+    ]),
+  ];
+  downloadCsv(`overall-summary-${firstWeek}-to-${lastWeek}.csv`, rows);
+}
+
+function formatActivityDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function formatActivityPace(activity: StravaActivity): string {
+  if (activity.distanceKm <= 0) return "";
+  const secondsPerKm = Math.round(
+    activity.movingTimeSeconds / activity.distanceKm
+  );
+  return `${Math.floor(secondsPerKm / 60)}:${String(
+    secondsPerKm % 60
+  ).padStart(2, "0")}`;
+}
+
+export function exportDailyActivitiesCsv(
+  program: ProgramConfig,
+  dayIndex: number,
+  athletes: Athlete[],
+  activities: StravaActivity[]
+): void {
+  const day = program.schedule[dayIndex];
+  if (!day) throw new Error("Cannot export activities for an unknown program day.");
+  const activityDate = new Date(`${program.weekStartDate}T00:00:00Z`);
+  activityDate.setUTCDate(activityDate.getUTCDate() + dayIndex);
+  const activitiesByAthlete = new Map<string, StravaActivity[]>();
+  for (const activity of activities) {
+    const athleteActivities = activitiesByAthlete.get(activity.athleteId || "");
+    if (athleteActivities) athleteActivities.push(activity);
+    else activitiesByAthlete.set(activity.athleteId || "", [activity]);
+  }
+
+  const rows: CsvValue[][] = [
+    ["วันที่", activityDate.toISOString().slice(0, 10)],
+    ["วัน", getThaiDayName(day.day, dayIndex)],
+    ["โปรแกรม", `${day.title}${day.subtitle ? ` ${day.subtitle}` : ""}`],
+    ["ประเภทการซ้อม", getWorkoutType(day)],
+    [],
+    [
+      "รหัสนักกีฬา",
+      "ชื่อเล่น",
+      "เพศ",
+      "เป้าหมายรายวัน (กม.)",
+      "กิจกรรม",
+      "ระยะทาง (กม.)",
+      "เวลา (นาที:วินาที)",
+      "เพซ (นาที/กม.)",
+      "เวลาเริ่ม",
+      "แหล่งข้อมูล",
+    ],
+    ...athletes
+      .filter((athlete) => athlete.inClub)
+      .flatMap((athlete) => {
+        const athleteActivities = activitiesByAthlete.get(athlete.id) || [];
+        const targetKm = getDayTargetKm(day, athlete.gender);
+        const commonValues = [
+          athlete.id,
+          athlete.nickname,
+          athlete.gender === "F" ? "หญิง" : "ชาย",
+          targetKm === null ? "Null" : targetKm.toFixed(1),
+        ];
+        if (athleteActivities.length === 0) {
+          return [[...commonValues, "ไม่พบกิจกรรม", "", "", "", "", ""]];
+        }
+        return athleteActivities.map((activity) => [
+          ...commonValues,
+          activity.name,
+          activity.distanceKm.toFixed(1),
+          formatActivityDuration(activity.movingTimeSeconds),
+          formatActivityPace(activity),
+          activity.startDateLocal || "",
+          activity.source === "manual" ? "บันทึกเอง" : "Strava",
+        ]);
+      }),
+  ];
+  downloadCsv(
+    `activities-${program.weekStartDate}-day-${dayIndex + 1}.csv`,
+    rows
+  );
 }

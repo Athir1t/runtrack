@@ -1,10 +1,18 @@
 "use client";
 
-import React from "react";
-import { Download } from "lucide-react";
-import { DaySchedule, EvaluatedAthlete, ProgramConfig } from "@/types";
+import React, { useEffect, useState } from "react";
+import { BarChart3, Download, X } from "lucide-react";
+import {
+  DaySchedule,
+  EvaluatedAthlete,
+  OverallSummaryResponse,
+  ProgramConfig,
+} from "@/types";
 import { PoweredByStravaLogo } from "@/components/StravaBrand";
-import { exportAthletesCsv } from "@/utils/csv-export";
+import {
+  exportAthletesCsv,
+  exportOverallSummaryCsv,
+} from "@/utils/csv-export";
 
 interface LeaderboardTableProps {
   rankedAthletes: EvaluatedAthlete[];
@@ -21,6 +29,46 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
   program,
   isLoading,
 }) => {
+  const [isOverallOpen, setIsOverallOpen] = useState(false);
+  const [overallSummary, setOverallSummary] =
+    useState<OverallSummaryResponse | null>(null);
+  const [isLoadingOverall, setIsLoadingOverall] = useState(false);
+  const [overallError, setOverallError] = useState("");
+
+  const loadOverallSummary = async () => {
+    setIsLoadingOverall(true);
+    setOverallError("");
+    try {
+      const response = await fetch("/api/leaderboard/overall", {
+        cache: "no-store",
+      });
+      const result = (await response.json()) as OverallSummaryResponse & {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error || "ไม่สามารถโหลดสรุปรวมทุกสัปดาห์ได้");
+      }
+      setOverallSummary(result);
+    } catch (error) {
+      setOverallError(
+        error instanceof Error
+          ? error.message
+          : "ไม่สามารถโหลดสรุปรวมทุกสัปดาห์ได้"
+      );
+    } finally {
+      setIsLoadingOverall(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOverallOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOverallOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOverallOpen]);
+
   return (
     <section
       aria-busy={isLoading}
@@ -28,7 +76,18 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
         isLoading ? "invisible" : "visible"
       }`}
     >
-      <div className="flex justify-end border-b border-kmutt-border/50 px-4 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-kmutt-border/50 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            setIsOverallOpen(true);
+            if (!overallSummary) void loadOverallSummary();
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-kmutt-orange/40 px-3 py-1.5 text-xs font-semibold text-kmutt-orange"
+        >
+          <BarChart3 className="h-3.5 w-3.5" />
+          ดูยอดรวมทุกสัปดาห์
+        </button>
         <button
           type="button"
           onClick={() => exportAthletesCsv(program, rankedAthletes)}
@@ -247,6 +306,138 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
           </p>
           <PoweredByStravaLogo className="shrink-0 opacity-80 transition-opacity hover:opacity-100" />
         </div>
+      {isOverallOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setIsOverallOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="overall-summary-title"
+            className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-kmutt-border bg-kmutt-card text-gray-200 shadow-2xl"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-kmutt-border px-4 py-4 sm:px-6">
+              <div>
+                <h2
+                  id="overall-summary-title"
+                  className="text-lg font-bold text-white"
+                >
+                  ยอดรวมทุกสัปดาห์
+                </h2>
+                {overallSummary && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    รวม {overallSummary.weeks.length} สัปดาห์ที่เริ่มแล้ว
+                    {overallSummary.weeks.length > 0 &&
+                      ` · ${overallSummary.weeks[0]} ถึง ${
+                        overallSummary.weeks[overallSummary.weeks.length - 1]
+                      }`}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {overallSummary && (
+                  <button
+                    type="button"
+                    onClick={() => exportOverallSummaryCsv(overallSummary)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-kmutt-orange/40 px-3 py-2 text-xs font-semibold text-kmutt-orange"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    ดาวน์โหลด CSV
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsOverallOpen(false)}
+                  aria-label="ปิดสรุปรวม"
+                  className="rounded-lg p-2 text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kmutt-orange"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </header>
+            {isLoadingOverall ? (
+              <p className="px-6 py-12 text-center text-sm text-gray-400" role="status">
+                กำลังคำนวณยอดรวมทุกสัปดาห์...
+              </p>
+            ) : overallError ? (
+              <div className="p-6 text-center">
+                <p className="text-sm text-red-400" role="alert">
+                  {overallError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void loadOverallSummary()}
+                  className="mt-3 rounded-lg border border-kmutt-border px-3 py-2 text-xs font-semibold text-gray-200"
+                >
+                  ลองอีกครั้ง
+                </button>
+              </div>
+            ) : overallSummary ? (
+              <div className="max-h-[calc(90vh-76px)] overflow-auto">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead className="sticky top-0 bg-kmutt-dark text-xs text-gray-400">
+                    <tr className="border-b border-kmutt-border">
+                      <th className="px-4 py-3 text-center">#</th>
+                      <th className="px-4 py-3">นักกีฬา</th>
+                      <th className="px-4 py-3 text-right">ระยะรวม</th>
+                      <th className="px-4 py-3 text-center">วันซ้อม</th>
+                      <th className="px-4 py-3 text-right">% โปรแกรม</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-kmutt-border/50">
+                    {overallSummary.athletes.map((athlete, index) => (
+                      <tr key={athlete.id}>
+                        <td className="px-4 py-3 text-center text-gray-400">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-semibold text-white">
+                            {athlete.nickname}
+                          </span>
+                          <span className="ml-1.5 text-xs text-gray-500">
+                            ({athlete.gender === "F" ? "หญิง" : "ชาย"})
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="font-bold text-white">
+                            {athlete.distanceKm.toFixed(1)} กม.
+                          </span>
+                          <span className="mt-0.5 block text-[10px] text-gray-400">
+                            เป้า: {athlete.targetKm === null
+                              ? "Null"
+                              : `${athlete.targetKm.toFixed(1)} กม.`}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-white">
+                          {athlete.trainingDays}/{athlete.programTrainingDays}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-kmutt-orange">
+                          {athlete.percent === null
+                            ? "Null"
+                            : `${athlete.percent}%`}
+                        </td>
+                      </tr>
+                    ))}
+                    {overallSummary.athletes.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-4 py-10 text-center text-sm text-gray-400"
+                        >
+                          ไม่พบรายชื่อนักกีฬาในทีม
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      )}
     </section>
   );
 };

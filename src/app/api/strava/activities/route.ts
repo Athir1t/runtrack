@@ -15,8 +15,10 @@ import {
   getWeeklyProgram,
   getWeeklyActivitySync,
 } from "@/utils/database";
+import type { StoredStravaActivity } from "@/utils/database";
 import { getDefaultWeek } from "@/utils/program-week";
 import { syncAthleteWeek } from "@/utils/strava-sync";
+import { getWorkoutType } from "@/utils/workout";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +37,37 @@ function isValidDate(value: string): boolean {
   );
 }
 
+function getActivityLocalDate(activity: {
+  startDate?: string | null;
+  startDateLocal?: string | null;
+}): string {
+  if (activity.startDateLocal) return activity.startDateLocal.slice(0, 10);
+  if (!activity.startDate) return "";
+  const date = new Date(activity.startDate);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const weekStart = searchParams.get("weekStart");
+  const requestedDayIndex = searchParams.get("dayIndex");
+  const dayIndex =
+    requestedDayIndex !== null && /^[0-6]$/.test(requestedDayIndex)
+      ? Number(requestedDayIndex)
+      : null;
   if (!weekStart || !isValidDate(weekStart)) {
     return privateJson({ message: "Invalid week start date." }, { status: 400 });
+  }
+  if (requestedDayIndex !== null && dayIndex === null) {
+    return privateJson({ message: "Invalid program day." }, { status: 400 });
   }
 
   try {
@@ -121,21 +149,46 @@ export async function GET(request: Request) {
       athleteName: athleteNames.get(summary.athleteId) || summary.athleteId,
     }));
     const requestedAthleteId = searchParams.get("athleteId");
-    const activities =
-      isAuthenticated && requestedAthleteId
-        ? (await getWeeklyActivities(requestedAthleteId, weekStart)).map(
-            (activity) => ({
-              ...activity,
-              athleteName:
-                athleteNames.get(activity.athleteId) || activity.athleteId,
-            })
-          )
-        : isAuthenticated && forceRefresh
-          ? (await getAllWeeklyActivities(weekStart)).map((activity) => ({
+    let activities: StoredStravaActivity[] = [];
+    if (isAuthenticated && dayIndex !== null) {
+      const selectedDay = program.schedule[dayIndex];
+      if (!selectedDay) {
+        return privateJson({ message: "Program day not found." }, { status: 404 });
+      }
+      const targetDate = new Date(`${weekStart}T00:00:00Z`);
+      targetDate.setUTCDate(targetDate.getUTCDate() + dayIndex);
+      const targetLocalDate = targetDate.toISOString().slice(0, 10);
+      const omitLaps = getWorkoutType(selectedDay) === "interval";
+      const clubAthleteIds = new Set(
+        roster
+          .filter((athlete) => athlete.inClub)
+          .map((athlete) => athlete.id)
+      );
+      activities = (await getAllWeeklyActivities(weekStart))
+        .filter(
+          (activity) =>
+            clubAthleteIds.has(activity.athleteId) &&
+            getActivityLocalDate(activity) === targetLocalDate
+        )
+        .map((activity) => ({
           ...activity,
           athleteName: athleteNames.get(activity.athleteId) || activity.athleteId,
-            }))
-          : [];
+          ...(omitLaps ? { laps: [] } : {}),
+        }));
+    } else if (isAuthenticated && requestedAthleteId) {
+      activities = (await getWeeklyActivities(requestedAthleteId, weekStart)).map(
+        (activity) => ({
+          ...activity,
+          athleteName:
+            athleteNames.get(activity.athleteId) || activity.athleteId,
+        })
+      );
+    } else if (isAuthenticated && forceRefresh) {
+      activities = (await getAllWeeklyActivities(weekStart)).map((activity) => ({
+        ...activity,
+        athleteName: athleteNames.get(activity.athleteId) || activity.athleteId,
+      }));
+    }
 
     return privateJson({
       authenticated: isAuthenticated,

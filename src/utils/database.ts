@@ -47,6 +47,11 @@ export interface WeeklyAthleteActivitySummary {
   validActivityDates: string[];
 }
 
+export interface AllWeeklyAthleteActivitySummary
+  extends WeeklyAthleteActivitySummary {
+  weekStart: string;
+}
+
 const globalForPostgres = globalThis as typeof globalThis & {
   runTrackPool?: Pool;
   runTrackSchema?: Promise<void>;
@@ -519,6 +524,50 @@ export async function getWeeklyProgram(
   });
 }
 
+export async function getWeeklyProgramsThroughDate(
+  throughDate: string
+): Promise<Array<{ weekStart: string; program: ProgramConfig }>> {
+  const pool = await ensureDatabase();
+  const result = await pool.query<{
+    weekStart: string;
+    program: ProgramConfig;
+    schedule: ProgramConfig["schedule"];
+  }>(
+    `SELECT TO_CHAR(programs.week_start, 'YYYY-MM-DD') AS "weekStart",
+            programs.program,
+            COALESCE(
+              JSONB_AGG(
+                JSONB_BUILD_OBJECT(
+                  'day', days.day,
+                  'title', days.title,
+                  'subtitle', days.subtitle,
+                  'detail', days.detail,
+                  'isRest', days.is_rest,
+                  'isRace', days.is_race,
+                  'targetMaleKm', days.target_male_km,
+                  'targetFemaleKm', days.target_female_km
+                ) ORDER BY days.day_index
+              ) FILTER (WHERE days.day_index IS NOT NULL),
+              '[]'::jsonb
+            ) AS schedule
+     FROM weekly_programs AS programs
+     LEFT JOIN weekly_program_days AS days
+       ON days.week_start = programs.week_start
+     WHERE programs.week_start <= $1::date
+     GROUP BY programs.week_start, programs.program
+     ORDER BY programs.week_start`,
+    [throughDate]
+  );
+  return result.rows.map((row) => ({
+    weekStart: row.weekStart,
+    program: withDerivedProgramTargets({
+      ...row.program,
+      weekStartDate: row.weekStart,
+      schedule: row.schedule.length ? row.schedule : row.program.schedule,
+    }),
+  }));
+}
+
 export async function saveWeeklyProgram(
   weekStart: string,
   program: ProgramConfig
@@ -810,6 +859,43 @@ export async function getWeeklyAthleteActivitySummaries(
   );
   return result.rows.map((row) => ({
     athleteId: row.athleteId,
+    distanceKm: Number(row.distanceKm),
+    runsCount: Number(row.runsCount),
+    activityDates: row.activityDates || [],
+    validActivityDates: row.validActivityDates || [],
+  }));
+}
+
+export async function getAllWeeklyAthleteActivitySummaries(
+  throughDate: string
+): Promise<AllWeeklyAthleteActivitySummary[]> {
+  const pool = await ensureDatabase();
+  const result = await pool.query(
+    `SELECT TO_CHAR(week_start, 'YYYY-MM-DD') AS "weekStart",
+            athlete_id AS "athleteId",
+            SUM(distance_km)::float8 AS "distanceKm",
+            COUNT(*)::int AS "runsCount",
+            ARRAY_AGG(DISTINCT LEFT(start_date_local, 10)) AS "activityDates",
+            ARRAY_AGG(DISTINCT LEFT(start_date_local, 10))
+              FILTER (WHERE distance_km >= 1 AND moving_time_seconds >= 300)
+              AS "validActivityDates"
+     FROM (
+       SELECT athlete_id, week_start, distance_km, moving_time_seconds,
+              start_date_local
+       FROM weekly_activities
+       WHERE week_start <= $1::date
+       UNION ALL
+       SELECT athlete_id, week_start, distance_km, moving_time_seconds,
+              start_date_local
+       FROM manual_activities
+       WHERE week_start <= $1::date
+     ) AS activities
+     GROUP BY week_start, athlete_id
+     ORDER BY week_start, athlete_id`,
+    [throughDate]
+  );
+  return result.rows.map((row) => ({
+    ...row,
     distanceKm: Number(row.distanceKm),
     runsCount: Number(row.runsCount),
     activityDates: row.activityDates || [],

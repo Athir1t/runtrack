@@ -77,9 +77,20 @@ export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
               </div>
 
               <div className="mt-2 flex-1">
-                <div className={`text-sm font-bold leading-tight ${style.accent}`}>
+                <a
+                  href={`/program/day?weekStart=${encodeURIComponent(
+                    program.weekStartDate
+                  )}&dayIndex=${index}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`ดูกิจกรรมของทุกคนสำหรับ${getThaiDayName(
+                    item.day,
+                    index
+                  )}ในแท็บใหม่`}
+                  className={`text-sm font-bold leading-tight underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kmutt-orange ${style.accent}`}
+                >
                   {item.title}
-                </div>
+                </a>
                 {item.subtitle && (
                   <div className="mt-0.5 text-xs text-gray-400">{item.subtitle}</div>
                 )}
@@ -88,15 +99,25 @@ export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
                     {item.detail}
                   </p>
                 )}
-                  <button
-                    type="button"
-                    aria-haspopup="dialog"
-                    aria-label={`ดูรายละเอียด${getThaiDayName(item.day, index)}`}
-                    onClick={() => setSelectedDayIndex(index)}
-                    className="mt-1 text-[10px] font-semibold text-kmutt-orange underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kmutt-orange"
-                  >
-                    ดูรายละเอียด
-                  </button>
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-label={`ดูรายละเอียด${getThaiDayName(item.day, index)}`}
+                  onClick={() => setSelectedDayIndex(index)}
+                  className="mt-1 text-[10px] font-semibold text-kmutt-orange underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kmutt-orange"
+                >
+                  ดูรายละเอียด
+                </button>
+                <a
+                  href={`/program/day?weekStart=${encodeURIComponent(
+                    program.weekStartDate
+                  )}&dayIndex=${index}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-2 text-[10px] font-semibold text-sky-300 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kmutt-orange"
+                >
+                  กิจกรรมทุกคน ↗
+                </a>
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-1.5 border-t border-white/10 pt-2">
@@ -214,6 +235,16 @@ export const WeeklyProgram: React.FC<WeeklyProgramProps> = ({ program }) => {
                 </span>
               </p>
             </div>
+            <a
+              href={`/program/day?weekStart=${encodeURIComponent(
+                program.weekStartDate
+              )}&dayIndex=${selectedDayIndex}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-kmutt-orange px-4 py-2.5 text-sm font-bold text-white hover:bg-kmutt-orange/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kmutt-orange focus-visible:ring-offset-2 focus-visible:ring-offset-kmutt-card"
+            >
+              ดูกิจกรรมของทุกคนในวันนี้ ↗
+            </a>
           </div>
         </div>
       )}
