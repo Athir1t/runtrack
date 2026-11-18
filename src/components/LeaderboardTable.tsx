@@ -1,13 +1,16 @@
 "use client";
 
 import React from "react";
-import { DaySchedule, EvaluatedAthlete } from "@/types";
+import { Download } from "lucide-react";
+import { DaySchedule, EvaluatedAthlete, ProgramConfig } from "@/types";
 import { PoweredByStravaLogo } from "@/components/StravaBrand";
+import { exportAthletesCsv } from "@/utils/csv-export";
 
 interface LeaderboardTableProps {
   rankedAthletes: EvaluatedAthlete[];
   weekStartDate: string;
   schedule: DaySchedule[];
+  program: ProgramConfig;
   isLoading: boolean;
 }
 
@@ -15,6 +18,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
   rankedAthletes,
   weekStartDate,
   schedule,
+  program,
   isLoading,
 }) => {
   return (
@@ -24,6 +28,16 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
         isLoading ? "invisible" : "visible"
       }`}
     >
+      <div className="flex justify-end border-b border-kmutt-border/50 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => exportAthletesCsv(program, rankedAthletes)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-kmutt-orange/40 px-3 py-1.5 text-xs font-semibold text-kmutt-orange"
+        >
+          <Download className="h-3.5 w-3.5" />
+          ส่งออกข้อมูลสัปดาห์นี้ CSV
+        </button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[700px] table-fixed text-left text-sm text-gray-200">
           <thead>

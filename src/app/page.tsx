@@ -444,6 +444,7 @@ export default function Home() {
           rankedAthletes={rankedAthletes}
           weekStartDate={weekStartDate}
           schedule={program.schedule}
+          program={program}
           isLoading={false}
         />
       ) : (
